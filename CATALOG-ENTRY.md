@@ -3,13 +3,13 @@
 Paste-ready. **Nothing in `systemslibrarian/crypto-lab` was edited** — this file hands the data
 back instead, per the build instructions.
 
-Pinned at commit **`f5e749d3b65f3c40779c2fbf8fba9b227c98c113`**.
+Pinned at commit **`9b256abb0b1270fb4bd1a5cabd573258cf5bd4b7`**.
 
 That is the last commit containing lab code, tests or configuration, and it is the state that was
 deployed and verified live (the served bundle was confirmed byte-identical to a local build of it).
 Commits after it on `main` add only this file and notes about it, so the review sha deliberately
 does not chase its own documentation — pinning to the tip would move every time this file is
-edited. `f5e749d` is reachable on `main`; verify with `git log f5e749d..main --oneline` that
+edited. `9b256ab` is reachable on `main`; verify with `git log 9b256ab..main --oneline` that
 nothing but documentation follows it.
 
 **Three fields are deliberately left for central assignment and are NOT proposed here:**
@@ -26,15 +26,15 @@ Kicker / title / copy / chips, in the shape `index.html` uses:
 <a class="project-card" data-category="ENCRYPTION" href="https://systemslibrarian.github.io/crypto-lab-function-key/"
   data-implements="ristretto255@src/crypto/ristretto.ts:43 | SHA-512@src/crypto/prng.ts:47 | ABDP15 IPFE@src/crypto/ipfe.ts:74 | Baby-step giant-step@src/crypto/dlog.ts:130 | Discrete logarithm@src/crypto/dlog.ts:130"
   data-references="Diffie-Hellman | ElGamal | FAME CP-ABE | Paillier | LWE"
-  data-attacks="Key collusion / linear reconstruction@src/crypto/attacks.ts:186 | Ciphertext malleability@src/crypto/ipfe.ts:196"
+  data-attacks="Key collusion / linear reconstruction@src/crypto/attacks.ts:232 | Ciphertext malleability@src/crypto/ipfe.ts:221"
   data-standards="IETF"
   data-implementation="@noble"
-  data-review-commit="f5e749d3b65f3c40779c2fbf8fba9b227c98c113"
+  data-review-commit="9b256abb0b1270fb4bd1a5cabd573258cf5bd4b7"
   data-review-note="Browser TypeScript throughout; @noble/curves pinned to RFC 9496 Appendix A (A.1/A.2/A.3) before any scheme code, ABDP15 Construction 3.1 implemented in-repo"
   target="_blank" rel="noopener" style="--accent: /* ASSIGNED CENTRALLY */;">
   <div class="card-kicker">Functional Encryption</div>
   <div class="project-title">Function Key</div>
-  <div class="project-copy">Issue a key that answers one question about an encrypted vector — its weighted sum — and nothing else. Then collect keys one at a time and watch the set of plaintexts still possible shrink, until enough keys are the plaintext itself, and the master secret, with no ciphertext in hand.</div>
+  <div class="project-copy">Issue a key that answers one question about an encrypted vector — its weighted sum — and nothing else. Watch decryption finish without producing a number, then issue keys one at a time and watch the set of possible plaintexts shrink, until you are the authority deciding whether to sign the one that hands over the master secret.</div>
   <div class="project-meta">
     <div class="stack">
       <span class="chip">ABDP15 IPFE</span>
@@ -53,7 +53,7 @@ Kicker / title / copy / chips, in the shape `index.html` uses:
 |---|---|
 | Card title | `Function Key` |
 | Kicker | `Functional Encryption` |
-| Description | Issue a key that answers one question about an encrypted vector — its weighted sum — and nothing else. Then collect keys one at a time and watch the set of plaintexts still possible shrink, until enough keys are the plaintext itself, and the master secret, with no ciphertext in hand. |
+| Description | Issue a key that answers one question about an encrypted vector — its weighted sum — and nothing else. Watch decryption finish without producing a number, then issue keys one at a time and watch the set of possible plaintexts shrink, until you are the authority deciding whether to sign the one that hands over the master secret. |
 | Chips | `ABDP15 IPFE` · `ristretto255` · `Baby-Step Giant-Step` · `Key Collusion` |
 | About one-liner (GitHub) | Inner-product functional encryption over ristretto255: a key that releases only ⟨x, y⟩, the discrete-log bound that limits it, and what enough keys add up to. |
 
@@ -82,8 +82,8 @@ choice and the reasoning is the deliverable.
 
 ```json
   "crypto-lab-function-key": {
-    "commit": "f5e749d3b65f3c40779c2fbf8fba9b227c98c113",
-    "reviewed": "2026-09-29",
+    "commit": "9b256abb0b1270fb4bd1a5cabd573258cf5bd4b7",
+    "reviewed": "2026-09-30",
     "add": [
       "ristretto255@src/crypto/ristretto.ts:43",
       "SHA-512@src/crypto/prng.ts:47",
@@ -170,6 +170,11 @@ have no edge of their own and pass WCAG 1.4.11 on fill-vs-surround. Teal clears 
 the page. **A dark accent would not**, and those two controls are the ones that would report first.
 The fix then is to give them an explicit `--control-border` edge — not to add them to
 `e2e/nontext-baseline.ts`, which is currently empty and should stay that way.
+
+**Open Graph image:** the lab ships its own `og.png` (1200x630), generated from a real render of
+the rank-collapse moment by `scripts/make-og.mjs` and committed. It uses the same teal fallback the
+rest of the page does, so **if a different accent is assigned, re-run that script** — the palette is
+declared at the top of it — and commit the regenerated file.
 
 **Favicon:** not set. The brief holds it back because the obvious glyph for this lab is a key, and
 four labs already use that exact emoji (`otp-vault`, `rsa-educational`, `shamir-vs-frost`,
