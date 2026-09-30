@@ -300,10 +300,20 @@ export function forgeKey(recovered: readonly bigint[], y: readonly bigint[]): Fu
  *     same fact with the ciphertext removed.
  *
  * The limit is in what was authorized, not in the proof. What it is NOT: this
- * says nothing about whether ABDP15 is adaptively secure (it is not proven to
- * be; see ALS16), and it is not an argument that collusion is harmless in a
- * deployment — an authority that issues n independent keys has given away the
- * master secret, which is a key-management fact the proof cannot help with.
+ * says nothing about whether ABDP15 is adaptively secure. Its own constructions
+ * are proved only against SELECTIVE adversaries — ALS16's abstract states that
+ * outright — and adaptive security for this functionality arrived in 2016 from
+ * two directions: ALS16 (new constructions from hash proof systems, same
+ * assumptions, plus a DCR solution) and ABCP16, the ABDP15 authors' own
+ * follow-up (ePrint 2016/011), a generic construction instantiated from
+ * ElGamal/DDH, Paillier-BCP/DCR and Regev/LWE. Neither re-proves THIS
+ * construction; both replace it. So the scope is exact both ways: this scheme
+ * is not proven adaptively secure, and adaptively secure IPFE under the same
+ * assumptions is not an open problem.
+ *
+ * Nor is any of it an argument that collusion is harmless in a deployment — an
+ * authority that issues n independent keys has given away the master secret,
+ * which is a key-management fact the proof cannot help with.
  */
 export const WHY_PERMITTED = {
   headline: 'Authorized, not broken',
@@ -317,7 +327,9 @@ export const WHY_PERMITTED = {
     'So full reconstruction is the functionality delivering what was authorized, not a failure of the proof.',
   ],
   notClaimed:
-    'This is not an argument that ABDP15 is adaptively secure (it is not proven to be), ' +
-    'and not an argument that collusion is harmless in deployment: an authority that ' +
-    'issues n independent keys has given away s.',
+    'This is not an argument that ABDP15 is adaptively secure: its own constructions are ' +
+    'proved only against selective adversaries, and adaptive security for this functionality ' +
+    'comes from later work (ALS16, ABCP16) that replaces the construction rather than ' +
+    're-proving it. Nor is it an argument that collusion is harmless in deployment: an ' +
+    'authority that issues n independent keys has given away s.',
 } as const;

@@ -5,9 +5,15 @@ back instead, per the build instructions.
 
 Pinned at commit **`24c7682a1be75579229210b4b445a0e1ae1f507a`**.
 
-That is the current tip of `origin/main`, deployed and verified live: every emitted asset was
-confirmed byte-identical to a local build of it, and the claims and flows suites were re-run
-against the live deployment.
+That is the commit this data was derived from: it was deployed and verified live, with every
+emitted asset confirmed byte-identical to a local build of it and the claims and flows suites
+re-run against the live deployment.
+
+It is **not** the tip of `origin/main`, and the sentence here used to say it was. That claim was
+self-defeating rather than merely stale: the commit that introduced it was itself a commit after
+the pin, so it was false the moment it was written, and it would be false again after any edit to
+this file. A pin names a commit; whether that commit is also the tip is a separate question, and
+`git log 24c7682..main --oneline` is the way to ask it.
 
 **Three fields are deliberately left for central assignment and are NOT proposed here:**
 `--accent`, the favicon emoji, and the final `data-category`. The neighbour data needed to decide

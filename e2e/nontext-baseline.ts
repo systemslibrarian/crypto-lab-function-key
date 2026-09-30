@@ -31,15 +31,17 @@
  * Two controls override it and pass on fill instead: `.btn-primary` and the
  * selected `.tab-btn` both paint their border the same colour as their accent
  * fill, so neither has an edge of its own. They clear 3:1 on fill-vs-surround
- * because the accent resolves to the fleet's teal fallback (10.2:1 against the
- * page).
+ * on the accent alone.
  *
- * THAT LAST POINT IS THE ONE TO RE-READ WHEN THIS FILE STOPS BEING EMPTY.
- * `--accent` is deliberately UNDEFINED in this repo; the catalog assigns it
- * centrally, and until then those two controls are measured against
- * `var(--accent, #35d6bb)`. A dark accent would reduce that fill-vs-surround
- * ratio, and `.btn-primary` and the selected tab are the two shapes that would
- * report first. The fix then is to give those two an explicit
+ * THAT WAS THE POINT TO RE-READ WHEN `--accent` ARRIVED, SO HERE IS THE READING.
+ * The catalog assigned `#ffb84d` on 2026-09-30. Measured against `--bg`
+ * (#0d1412) that is **10.85:1**, where the teal fallback it replaces measured
+ * 10.20:1 — the assignment moved the ratio UP, so neither control needs the
+ * explicit `--control-border` edge a dark accent would have forced, and this
+ * file stays empty. The warning is left standing rather than deleted, because
+ * it is still the right instruction for the next accent: a DARK one reduces
+ * fill-vs-surround, `.btn-primary` and the selected tab are the two shapes that
+ * report first, and the fix then is to give those two an explicit
  * `--control-border` edge, NOT to list them here.
  *
  * The shared top bar's `.cl-btn`, baselined in older labs at ~1.49:1, draws its

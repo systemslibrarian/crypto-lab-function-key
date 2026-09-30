@@ -30,7 +30,9 @@
  * lab's mutations.
  *
  * Security, from Theorem 3.2: the scheme is s-IND-FE-CPA under DDH —
- * SELECTIVE indistinguishability, and CPA only. Adaptive security needs ALS16.
+ * SELECTIVE indistinguishability, and CPA only. Adaptive security for the same
+ * functionality is ALS16 (ePrint 2015/608) or ABCP16 (ePrint 2016/011), each a
+ * different construction rather than a stronger proof of this one.
  * No CCA claim is made anywhere, and the ciphertext is additively malleable by
  * construction (see `combineCiphertexts`).
  */

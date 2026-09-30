@@ -38,7 +38,7 @@ const T = {
   muted: '#94aca6',
   ok: '#5fd39b',
   warn: '#ffc266',
-  accent: '#35d6bb', // the fleet fallback; --accent is assigned centrally
+  accent: '#ffb84d', // assigned centrally by the catalog, 2026-09-30
   mono: 'ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace',
 };
 

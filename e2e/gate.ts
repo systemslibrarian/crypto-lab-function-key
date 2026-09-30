@@ -50,10 +50,11 @@ export const NARROW = { width: 380, height: 800 };
  *     this lab's meaning are `color-mix()` fills axe files under `incomplete`
  *     rather than judging: the alarm-tinted row fill that marks the
  *     deliberately wrong fixture and every out-of-range boundary row, and
- *     `.btn-primary:hover`. Every accent surface is a second case, because
- *     `--accent` is deliberately undefined here and resolves through a
- *     `var(--accent, #35d6bb)` fallback chain axe has no reason to follow. So
- *     is an `aria-label` on a role-less element.
+ *     `.btn-primary:hover`. Every accent surface is a second case, because it
+ *     resolves through the `var(--accent, #35d6bb)` chain inside
+ *     `--accent-live`, which axe has no reason to follow — that holds now the
+ *     catalog has assigned `--accent: #ffb84d` exactly as it held while the
+ *     token was undefined. So is an `aria-label` on a role-less element.
  *
  *  5. IT HAD NO REFLOW, NON-TEXT-CONTRAST OR GENERATED-CONTENT ORACLE. The old
  *     spec hand-rolled one luminance check over two input selectors, reading
@@ -269,13 +270,31 @@ export async function boot(page: Page, theme: 'dark' | 'light'): Promise<void> {
     page.locator('#theme-toggle, #themeToggle, .theme-toggle, .theme-toggle-btn, [data-theme-toggle]')
   ).toHaveCount(0);
 
-  // ── --accent is deliberately UNDEFINED in this repo ─────────────────────
+  // ── --accent carries its central assignment, and the fallback still paints ──
+  // This asserted `--accent` was UNDEFINED until the catalog assigned it on
+  // 2026-09-30. The premise changed; the test did not go away. Both halves are
+  // load-bearing: the first pins the assigned value so a sweep cannot silently
+  // re-tint the lab, and the second removes the property at runtime to confirm
+  // `var(--accent, #35d6bb)` still paints — which is what keeps this repo
+  // correct for the 58 labs in the fleet that still define no accent at all.
   expect(
     await page.evaluate(() =>
       getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
     ),
-    '--accent must stay undefined in this repo; the catalog assigns it centrally'
-  ).toBe('');
+    '--accent must carry the centrally assigned value'
+  ).toBe('#ffb84d');
+  expect(
+    await page.evaluate(() => {
+      const root = document.documentElement;
+      const had = root.style.getPropertyValue('--accent');
+      root.style.setProperty('--accent', 'initial');
+      const painted = getComputedStyle(root).getPropertyValue('--accent-live').trim();
+      if (had) root.style.setProperty('--accent', had);
+      else root.style.removeProperty('--accent');
+      return painted;
+    }),
+    'the consumer fallback must still paint when --accent is absent'
+  ).toBe('#35d6bb');
 
   // ── The scenario bar is the FIRST interactive thing on the page ─────────
   // Not a layout preference: the controls used to start ~998px down on desktop
@@ -612,8 +631,8 @@ export function expectBaselineNotStale(): void {
  *    this lab's meaning are fills axe cannot resolve: the alarm-tinted
  *    `color-mix()` row fill on the wrong fixture and the out-of-range boundary
  *    rows, `.btn-primary:hover`, and every accent surface, which resolves
- *    through the `var(--accent, #35d6bb)` fallback this repo relies on while
- *    `--accent` stays centrally assigned. Everything else in that bucket is a
+ *    through the `var(--accent, #35d6bb)` chain, now carrying the centrally
+ *    assigned `#ffb84d`. Everything else in that bucket is a
  *    real result axe simply could not finish — including
  *    `aria-prohibited-attr`, which is where an `aria-label` on a role-less
  *    element hides. This page leans on getting that right: each vector's

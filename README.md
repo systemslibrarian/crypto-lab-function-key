@@ -29,7 +29,8 @@ The primitives, all real and all implemented in this repo:
   mod ℓ for recovering the master secret. No floating point anywhere.
 
 **Security model:** ABDP15 Theorem 3.2 proves the scheme **selectively** IND-FE-CPA secure under
-DDH. That is *selective*, not adaptive (adaptive security needs ALS16, which is not built here),
+DDH. That is *selective*, not adaptive (adaptive security for this functionality comes from
+ALS16 and ABCP16, neither of which is built here),
 and **CPA only** — the ciphertext is additively malleable, which this lab demonstrates rather
 than mentions.
 
@@ -113,9 +114,12 @@ one question" adds up to — and decide, as the authority, whether to issue the 
 
 1. **The discrete-log bottleneck.** Decryption yields `g^{<x,y>}`; recovering the integer is a
    discrete log, tractable only because the answer is known to be small. Push the answer outside
-   the bound and the search **reports failure** — it never returns a wrapped value. ALS16 removes
-   this restriction using **Paillier** specifically; its LWE schemes keep short coordinates and
-   add inner products modulo a prime instead. Neither is built here.
+   the bound and the search **reports failure** — it never returns a wrapped value. ALS16 is where
+   that restriction goes, by two routes rather than one: its **LWE**-based schemes evaluate inner
+   products **modulo a prime `p`**, and its abstract draws the contrast with this construction in
+   those words — ABDP15 is "restricted to evaluations of integer inner products of short integer
+   vectors"; and its **Paillier/DCR** solution evaluates them **modulo an RSA integer `N = pq`**.
+   Neither is built here.
 
 2. **The functionality itself leaks.** `n` linearly independent outputs *are* `x`. And since
    `sk_y = <s, y>`, `n` independent keys *are* the master secret `s`, with no ciphertext involved.
@@ -125,7 +129,12 @@ one question" adds up to — and decide, as the authority, whether to issue the 
    then `x₁ − x₀` is orthogonal to a basis, so `x₀ = x₁` — there is no pair of distinct messages
    left to distinguish, and the game is vacuous at that point rather than lost. The limit is in
    **what was authorized**, not in the proof. What this does *not* say: it is not an argument that
-   ABDP15 is adaptively secure (it is not proven to be), and not an argument that collusion is
+   ABDP15 is adaptively secure. Its own constructions are proved only against selective
+   adversaries — ALS16's abstract says so in those words — and adaptive security for this
+   functionality arrived in 2016 from two directions, ALS16 and ABCP16 (the ABDP15 authors' own
+   follow-up), both of which give NEW constructions rather than re-proving this one. So the scope
+   is exact: this scheme is not proven adaptively secure, and adaptively secure IPFE under the
+   same assumptions is not an open problem. Nor is any of it an argument that collusion is
    harmless in a deployment — an authority that issues `n` independent keys has given away `s`,
    which is a key-management fact no proof can help with.
 
@@ -213,7 +222,8 @@ source that no longer compiles.
   [CKKS Lab](https://systemslibrarian.github.io/crypto-lab-ckks-lab/) — computing without learning
   the plaintext, the opposite direction from FE.
 - [Paillier Gate](https://systemslibrarian.github.io/crypto-lab-paillier-gate/) — the cryptosystem
-  ALS16 uses to remove this lab's small-output restriction.
+  behind ALS16's DCR-based inner-product scheme, which evaluates inner products modulo `N = pq`
+  rather than as bounded integers.
 
 ## Build & Verify
 

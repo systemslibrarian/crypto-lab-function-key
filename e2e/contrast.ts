@@ -11,10 +11,10 @@ import type { Page } from '@playwright/test';
  *    a failing row paints `background-color: color-mix(in srgb, var(--alarm)
  *    10%, transparent)`, which is where the deliberately-wrong fixture row and
  *    every out-of-range boundary row live. `.btn-primary:hover` is a second
- *    one, mixing the accent toward white. Because `--accent` is deliberately
- *    UNDEFINED in this repo pending central assignment, every accent surface
- *    resolves through `var(--accent, #35d6bb)` inside `--accent-live` — a
- *    fallback chain axe has no reason to follow, and the surface under the
+ *    one, mixing the accent toward white. Every accent surface resolves through
+ *    `var(--accent, #35d6bb)` inside `--accent-live` — now carrying the
+ *    centrally assigned `#ffb84d`, and a chain axe has no reason to follow
+ *    either way — and the surface under the
  *    selected tab, the hero label and the "EXHIBIT n" kickers.
  *
  *  - TEXT FADED BY AN ANCESTOR'S `opacity` — axe reads the declared `color`,

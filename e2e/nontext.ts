@@ -25,14 +25,15 @@ import type { Page } from '@playwright/test';
  * live or die by fill-vs-surround. This oracle judges each control as painted,
  * at every driven state, rather than trusting the token.
  *
- * A note specific to this repo: `--accent` is deliberately left UNDEFINED
- * pending central assignment, so those accent fills resolve through the
- * `var(--accent, #35d6bb)` fallback inside `--accent-live`. This oracle
- * measures what the browser actually paints, which means it measures the
- * fallback — and it will measure the assigned colour instead, with no edit to
- * this file, the day `--accent` is defined on `:root`. If that colour is a
- * dark hue, `.btn-primary` and the selected tab are the two controls that will
- * report first.
+ * A note specific to this repo: this oracle measures what the browser actually
+ * paints rather than trusting a token, and that design was tested the day the
+ * catalog assigned `--accent: #ffb84d` (2026-09-30). Until then the accent
+ * fills resolved through the `var(--accent, #35d6bb)` fallback inside
+ * `--accent-live`; now they resolve through the assignment. **This file needed
+ * no edit for that**, which is the property to keep. The assigned amber is
+ * lighter than the fallback, so the two borderless controls moved further from
+ * the 3:1 floor, not closer; a DARK accent is the case where `.btn-primary` and
+ * the selected tab report first.
  *
  * The generated-content half is live too: `.tab-btn[aria-selected="true"]`
  * carries a `::before` `▸` marker. That glyph is one of the three signals

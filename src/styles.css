@@ -1,20 +1,26 @@
 /*
  * Function Key — theme and layout.
  *
- * ON --accent, AND WHY IT IS NOT DEFINED HERE.
+ * ON --accent.
  *
  * The catalog assigns each lab its accent centrally, from a four-colour
- * rotation, judged against the 4-, 2- and 1-column card layouts. This repo
- * therefore does NOT define `--accent` on `:root`. Every consumer below reads
- * it through `--accent-live`, which supplies the same teal the fleet top bar
- * falls back to:
+ * rotation, judged against the 4-, 2- and 1-column card layouts. This lab was
+ * built with the token UNDEFINED and every consumer reading it through
+ * `--accent-live`:
  *
  *     --accent-live: var(--accent, #35d6bb);
  *
- * That is a fallback in a consumer, not a definition of the token. The token
- * stays undefined, so the moment central assignment adds `--accent: #xxxxxx`
- * to `:root` the whole page re-tints with no other edit. Writing a literal
- * accent here is what that would prevent.
+ * The assignment arrived on 2026-09-30 and is the one declaration below.
+ * Nothing else changed, which is what that arrangement was for: the fallback is
+ * still a fallback in a consumer, so the page paints correctly with or without
+ * the assignment, and the a11y oracles measure what is painted either way.
+ *
+ * The assigned amber is LIGHTER than the teal it replaces, which matters for
+ * one reason recorded in `e2e/nontext-baseline.ts`: `.btn-primary` and the
+ * selected `.tab-btn` paint their border the accent colour and so have no edge
+ * of their own. They live on fill-vs-surround, and amber measures 10.85:1
+ * against `--bg` where the teal measured 10.20:1 — so neither needs the
+ * explicit `--control-border` edge a DARK accent would have required.
  *
  * The colour tokens below were verified arithmetically before any of this CSS
  * was written: every text pairing clears 4.5:1 and every control boundary
@@ -51,6 +57,10 @@
   /* Dedicated ink for text sitting ON a coloured fill. */
   --ink-on-fill: #07100e;
 
+  /* Assigned centrally by the catalog, 2026-09-30. Amber against the crimson
+     on both grid neighbours, and away from Attribute Gate's violet, which is
+     the lab this one is read against. */
+  --accent: #ffb84d;
   --accent-live: var(--accent, #35d6bb);
 
   --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;

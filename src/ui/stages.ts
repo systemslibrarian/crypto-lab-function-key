@@ -1064,7 +1064,7 @@ function renderHonesty(state: LabState): string {
     `<li>Stages 3 and 4 are seeded scenarios, separate from the bar at the top</li>` +
     `</ul></div>` +
     `<div><h4>Not implemented</h4><ul>` +
-    `<li>Adaptive security. ABDP15 Theorem 3.2 proves <em>selective</em> IND-FE-CPA; ALS16 gets adaptive and is not built here</li>` +
+    `<li>Adaptive security. ABDP15 Theorem 3.2 proves <em>selective</em> IND-FE-CPA; ALS16 and ABCP16 each get adaptive with a different construction, and neither is built here</li>` +
     `<li>The Paillier variant that removes the small-output bound</li>` +
     `<li>General-function FE, function-hiding, multi-input and multi-client IPFE</li>` +
     `<li>Any CCA security whatever</li>` +
@@ -1133,9 +1133,19 @@ function renderHonesty(state: LabState): string {
     `<li>Agrawal, Libert, Stehl&eacute;, <em>Fully Secure Functional Encryption for Inner ` +
     `Products, from Standard Assumptions</em>, CRYPTO 2016; ` +
     `<a href="https://eprint.iacr.org/2015/608" target="_blank" rel="noopener noreferrer">ePrint 2015/608</a> ` +
-    `&mdash; adaptive security. It attributes removing the small-interval restriction to ` +
-    `<strong>Paillier</strong> specifically; its LWE schemes keep short coordinates and add ` +
-    `inner products modulo a prime instead.</li>` +
+    `&mdash; adaptive security, from new constructions rather than a stronger proof of this ` +
+    `one. Two escapes from the bounded-integer restriction, not one: its <strong>LWE</strong> ` +
+    `schemes evaluate inner products modulo a prime <em>p</em> &mdash; its abstract calls ` +
+    `ABDP15 &ldquo;restricted to evaluations of integer inner products of short integer ` +
+    `vectors&rdquo; &mdash; and its <strong>Paillier</strong>/DCR solution evaluates them ` +
+    `modulo an RSA integer <em>N</em> = <em>pq</em>.</li>` +
+    `<li>Abdalla, Bourse, De Caro, Pointcheval, <em>Better Security for Functional Encryption ` +
+    `for Inner Product Evaluations</em>; ` +
+    `<a href="https://eprint.iacr.org/2016/011" target="_blank" rel="noopener noreferrer">ePrint 2016/011</a> ` +
+    `&mdash; the same authors' own adaptive-security follow-up, a generic construction ` +
+    `instantiated from ElGamal (DDH), Paillier/BCP (DCR) and Regev (LWE). Listed because ` +
+    `&ldquo;ABDP15 is not proven adaptively secure&rdquo; is true of the construction and ` +
+    `says nothing about the functionality.</li>` +
     `<li>Boneh, Sahai, Waters, <em>Functional Encryption: Definitions and Challenges</em>, ` +
     `TCC 2011, LNCS 6597, pp. 253&ndash;273; ` +
     `<a href="https://eprint.iacr.org/2010/543" target="_blank" rel="noopener noreferrer">ePrint 2010/543</a> ` +
