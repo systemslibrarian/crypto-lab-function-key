@@ -85,7 +85,7 @@ jobs:
     # the merged bump never deploys, and a `|| echo` fallback hides it.
     steps:
       - id: meta
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@v3
       - name: Merge any bump whose gate went green
         run: |
           for attempt in 1 2 3; do
