@@ -3,8 +3,14 @@
 Paste-ready. **Nothing in `systemslibrarian/crypto-lab` was edited** — this file hands the data
 back instead, per the build instructions.
 
-Pinned at commit **`f5e749d3b65f3c40779c2fbf8fba9b227c98c113`** (main tip, deployed and verified
-live).
+Pinned at commit **`f5e749d3b65f3c40779c2fbf8fba9b227c98c113`**.
+
+That is the last commit containing lab code, tests or configuration, and it is the state that was
+deployed and verified live (the served bundle was confirmed byte-identical to a local build of it).
+Commits after it on `main` add only this file and notes about it, so the review sha deliberately
+does not chase its own documentation — pinning to the tip would move every time this file is
+edited. `f5e749d` is reachable on `main`; verify with `git log f5e749d..main --oneline` that
+nothing but documentation follows it.
 
 **Three fields are deliberately left for central assignment and are NOT proposed here:**
 `--accent`, the favicon emoji, and the final `data-category`. The neighbour data needed to decide
