@@ -120,6 +120,83 @@ export function describeSolution(solution: RationalSolution): string {
   return `${vec(solution.particular)} + ${terms.join(' + ')}`;
 }
 
+/**
+ * Two DISTINCT vectors that are both consistent with every observation held.
+ *
+ * This is the evidence for "k < n keys do not determine x", and it has to be
+ * DERIVED from the current observations rather than fixed in advance. A pair
+ * chosen ahead of time is only consistent for the key subsets its author had
+ * in mind: the previous version of this lab pinned two vectors that agree on
+ * two particular keys, and 7 of the 15 non-empty subsets of the offered keys
+ * then legitimately ruled the second one out — which the page misreported as
+ * its own bookkeeping error rather than as the correct answer it was.
+ *
+ * Generated from the solution set instead: the particular solution p, and
+ * p + v for the first null-space basis vector v. Every point of the affine
+ * family satisfies every observation BY CONSTRUCTION, so this cannot be wrong
+ * for any key subset, in any order, at any rank below n. When the family is a
+ * single point there is no second candidate and this returns null — which is
+ * the honest answer, not a failure.
+ *
+ * Neither returned vector is identified as the real plaintext, because at this
+ * point nothing on the page knows which it is: that is the entire claim.
+ */
+export function sampleCandidates(
+  state: KnowledgeState,
+): { readonly first: readonly Frac[]; readonly second: readonly Frac[] } | null {
+  const sol = state.solution;
+  if (sol.kind !== 'solutions') return null;
+  if (sol.dimension === 0 || sol.nullSpace.length === 0) return null;
+  const v = sol.nullSpace[0];
+  const second = sol.particular.map((p, i) => ({
+    // p + v, as exact rationals.
+    ...addFrac(p, v[i]),
+  }));
+  return { first: sol.particular, second };
+}
+
+/** Exact rational addition, kept local so this module owns its own arithmetic. */
+function addFrac(a: Frac, b: Frac): Frac {
+  const num = a.num * b.den + b.num * a.den;
+  const den = a.den * b.den;
+  const g = gcdBig(num < 0n ? -num : num, den);
+  return g === 0n ? { num: 0n, den: 1n } : { num: num / g, den: den / g };
+}
+
+function gcdBig(a: bigint, b: bigint): bigint {
+  let x = a;
+  let y = b;
+  while (y) {
+    const t = x % y;
+    x = y;
+    y = t;
+  }
+  return x;
+}
+
+/**
+ * Does a vector satisfy every observation? Computed directly from the
+ * observations, with no reference to the solver — so the page's "consistent"
+ * badge is a second opinion on the solver rather than an echo of it.
+ */
+export function isConsistent(
+  candidate: readonly Frac[],
+  observations: readonly Observation[],
+): boolean {
+  for (const o of observations) {
+    // sum_i y_i * candidate_i, as an exact rational, compared against output.
+    let num = 0n;
+    let den = 1n;
+    for (let i = 0; i < o.y.length; i++) {
+      const t = { num: o.y[i] * candidate[i].num, den: candidate[i].den };
+      num = num * t.den + t.num * den;
+      den = den * t.den;
+    }
+    if (num !== o.output * den) return false;
+  }
+  return true;
+}
+
 /* ------------------------------------------------------------------ *
  * What the keys alone say about s
  * ------------------------------------------------------------------ */

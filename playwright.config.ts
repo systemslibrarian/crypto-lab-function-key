@@ -28,6 +28,14 @@ const BASE = `http://localhost:${PORT}/crypto-lab-function-key/`;
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
+  // ONE WORKER, ALWAYS. The a11y gate is a measurement, and measurements taken
+  // under CPU contention are not the same measurement: a first full-suite run
+  // here had the gate fail against a page that passed in isolation seconds
+  // later. The suite is under two minutes serial, which is a cheap price for a
+  // gate whose red means something. It also keeps the responsiveness budget in
+  // flows.spec.ts honest — that test times main-thread tasks, and a second
+  // browser competing for the same cores would make its budget meaningless.
+  workers: 1,
   timeout: 180_000, // the axe driver walks eight panels and ~30 states before finishing
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

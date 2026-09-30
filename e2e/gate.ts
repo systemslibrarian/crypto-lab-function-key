@@ -239,21 +239,12 @@ export async function assertListSemantics(page: Page): Promise<void> {
  * motion-suppressing stylesheet would bypass this lab's own
  * `prefers-reduced-motion` block instead of exercising it.
  *
- * The theme is seeded through `localStorage` rather than by clicking a toggle:
- * `index.html`'s anti-flash script writes and reads the `theme` key, and this
- * boot fails on `data-theme` if that ever drifts.
- *
- * The defaults are asserted at length because `main.ts` renders each tabpanel
+ * The defaults are asserted at length because `main.ts` renders each stage
  * lazily on first activation. A navigation that resolves proves nothing: a
- * renderer that threw would leave `#panel-keys` empty, and an EMPTY REGION IS
- * EXACTLY WHAT A SCAN REPORTS AS PERFECTLY ACCESSIBLE. Everything asserted
- * here is a value this lab ships, so an assertion failing is a change in the
- * lab, not a flaky wait.
+ * renderer that threw would leave `#panel-ask` empty, and an EMPTY REGION IS
+ * EXACTLY WHAT A SCAN REPORTS AS PERFECTLY ACCESSIBLE.
  */
 export async function boot(page: Page, theme: 'dark' | 'light'): Promise<void> {
-  // A click on a control that never becomes actionable otherwise burns the
-  // whole test timeout and reports nothing useful. 20s turns that silent hang
-  // into a named failure naming the locator.
   page.setDefaultTimeout(20_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.addInitScript((t) => localStorage.setItem('theme', t), theme);
@@ -268,31 +259,17 @@ export async function boot(page: Page, theme: 'dark' | 'light'): Promise<void> {
 
   // ── The page really rendered ────────────────────────────────────────────
   await expect(page.locator('main')).toHaveCount(1);
-  await expect(page.locator('.tab-btn')).toHaveCount(8);
+  await expect(page.locator('.tab-btn')).toHaveCount(5);
   await expect(page.locator('h1')).toHaveCount(1);
   await expect(page.locator('h1')).toHaveText('Function Key');
 
-  // The shared skip link points at an id that exists. axe's skip-link rule is
-  // best-practice, not WCAG-tagged, so `withTags` never runs it — a skip link
-  // aimed at a missing element is exactly the kind of thing a green axe run
-  // says nothing about.
   await expect(page.locator('a.cl-skip-link')).toHaveAttribute('href', '#app');
   await expect(page.locator('#app')).toHaveCount(1);
-
-  // Dark is the only theme, so the page must carry no theme control at all.
-  // The shared CSS hides any lab toggle with `display:none !important`, which
-  // would leave a dead-but-known element; asserting the count at zero catches
-  // the day one is added without going through that list.
   await expect(
     page.locator('#theme-toggle, #themeToggle, .theme-toggle, .theme-toggle-btn, [data-theme-toggle]')
   ).toHaveCount(0);
 
   // ── --accent is deliberately UNDEFINED in this repo ─────────────────────
-  // Central assignment owns it. Asserting that here means the gate is known to
-  // be measuring the `var(--accent, #35d6bb)` fallback rather than an assigned
-  // colour — so if a later run reports a control-boundary failure on
-  // `.btn-primary` or the selected tab, the first question ("did the accent
-  // land?") already has an answer on the record.
   expect(
     await page.evaluate(() =>
       getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
@@ -300,23 +277,35 @@ export async function boot(page: Page, theme: 'dark' | 'light'): Promise<void> {
     '--accent must stay undefined in this repo; the catalog assigns it centrally'
   ).toBe('');
 
-  // ── The arrival state: exhibit 1 active and already computed ────────────
-  // `renderKeys` runs a real Setup, Encrypt, KeyDer and Decrypt at mount, so
-  // first paint carries a recovered integer and a correctness verdict. The
-  // other seven panels are lazily rendered: hidden AND EMPTY until their tab
-  // is first activated — asserted, because "empty" is this lab's tell that a
-  // renderer threw (see `watchPageErrors`).
-  await expect(page.locator('#panel-keys [data-verdict="correctness"]')).toContainText(
-    'MATCHES THE DOT PRODUCT'
+  // ── The scenario bar is the FIRST interactive thing on the page ─────────
+  // Not a layout preference: the controls used to start ~998px down on desktop
+  // and ~1893px down on a phone. Asserting the order here keeps that fixed.
+  await expect(page.locator('#scenario-host .scenario')).toHaveCount(1);
+  const scenarioBeforeStages = await page.evaluate(() => {
+    const sc = document.querySelector('#scenario-host');
+    const nav = document.querySelector('.stages-nav');
+    if (!sc || !nav) return false;
+    return !!(sc.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  expect(scenarioBeforeStages, 'the scenario bar must precede the stage list').toBe(true);
+
+  // ── The arrival stage is rendered and already computed ──────────────────
+  // Stage 1 runs a real Setup, Encrypt, n basis-key decryptions AND one
+  // functional-key decryption at mount.
+  await expect(page.locator('#panel-ask [data-verdict="correctness"]')).toContainText(
+    'MATCHES THE WEIGHTED SUM'
   );
-  await expect(page.locator('#panel-keys .recovered-int')).toHaveText('15');
-  for (const id of ['decrypt', 'bottleneck', 'collect', 'alone', 'fixtures', 'compare', 'honesty']) {
+  await expect(page.locator('#panel-ask [data-verdict="authority-recovery"]')).toContainText(
+    'RECOVERED FROM THE CIPHERTEXT'
+  );
+  await expect(page.locator('#panel-ask [data-field="analyst-answer"]')).toHaveText('15');
+  await expect(page.locator('#panel-ask [data-field="authority-vector"]')).toHaveText('(3, 1, 4, 1)');
+  for (const id of ['decode', 'accumulate', 'cross', 'evidence']) {
     await expect(page.locator(`#panel-${id}`)).toBeHidden();
     await expect(page.locator(`#panel-${id}`)).toBeEmpty();
   }
 
   // ── Every shipped control default ───────────────────────────────────────
-  // x = (3,1,4,1), y = (2,0,1,5), so <x,y> = 15 — the value asserted above.
   for (const [i, v] of ['3', '1', '4', '1'].entries()) {
     await expect(page.locator(`input[data-vec="x"][data-index="${i}"]`)).toHaveValue(v);
   }
@@ -324,9 +313,41 @@ export async function boot(page: Page, theme: 'dark' | 'light'): Promise<void> {
     await expect(page.locator(`input[data-vec="y"][data-index="${i}"]`)).toHaveValue(v);
   }
   await expect(page.locator('#n-select')).toHaveValue('4');
+  await expect(page.locator('[data-field="scenario-expected"]')).toHaveText('15');
+
+  // ── Disclosures ship SHUT ───────────────────────────────────────────────
+  // The gate opens them by clicking their summary; none may arrive open.
+  await expect(page.locator('#panel-ask details.disclose[open]')).toHaveCount(0);
 
   await settle(page);
   await expectNotBlank(page, `${theme} first paint`);
+}
+
+/**
+ * Open every closed disclosure in a panel THE WAY A READER DOES — by clicking
+ * its summary — and scan each newly revealed body.
+ *
+ * Never `.open = true` from script. The gate this replaces stripped `[hidden]`
+ * and forced every `<details>` open before its single scan, which both states
+ * a rendering the page never produces and destroys the ability to catch the
+ * `[hidden]` cascade trap.
+ */
+async function openDisclosures(
+  page: Page,
+  panelId: string,
+  scanAt: (s: string) => Promise<void>,
+  label: string
+): Promise<void> {
+  const summaries = page.locator(`${panelId} details.disclose:not([open]) > summary`);
+  const n = await summaries.count();
+  for (let i = 0; i < n; i++) {
+    const s = page.locator(`${panelId} details.disclose:not([open]) > summary`).first();
+    if ((await s.count()) === 0) break;
+    const text = (await s.innerText()).trim().slice(0, 40);
+    await s.click();
+    await scanAt(`${label}: disclosure open — ${text}`);
+  }
+  await expect(page.locator(`${panelId} details.disclose:not([open])`)).toHaveCount(0);
 }
 
 /**
@@ -701,323 +722,222 @@ async function openTab(page: Page, name: RegExp, panelId: string): Promise<void>
 /**
  * Drive the lab through every state it teaches, scanning each one.
  *
- * Why a drive rather than one scan of the arrival page:
+ *  - EVERY STAGE IS RENDERED LAZILY, so a stage never activated is a panel
+ *    never in the DOM. Each of the five is activated through its real tab
+ *    button and scanned in its own driven states.
  *
- *  - EVERY PANEL IS RENDERED LAZILY, so a tab that is never clicked is a panel
- *    that is never even IN the DOM. Each of the eight is activated through its
- *    real tab button and scanned in its own driven states.
+ *  - THE STAGED DECRYPT IS A STATE MACHINE, and each of its four states paints
+ *    something different: idle (nothing applied), applied (an opaque element
+ *    and NO integer anywhere), searching (a live status), done (found, or an
+ *    explicit refusal). A gate that only saw the finished state would never
+ *    scan the two that carry the lesson.
  *
- *  - THE TWO EXHIBITS THAT MATTER MOST ARE MULTI-STATE BY CONSTRUCTION.
- *    Exhibit 4 paints a different thing at every rank — an affine family at
- *    rank < n, a single recovered point at rank n — and exhibit 5 paints a
- *    refusal at rank < n and an alarm-styled recovery at rank n. The recovery
- *    state contains the `.alarm-box` treatment that exists nowhere else on the
- *    page, so a gate that never collects four keys never scans it.
+ *  - STAGE 3 PAINTS A DIFFERENT THING AT EVERY RANK, and stage 4 paints a
+ *    refusal, an issuance warning, an override and a recovery. The alarm
+ *    treatment exists nowhere else on the page.
  *
- *  - FAILURE AND REFUSAL STATES ARE THE POINT OF THIS LAB, not incidental.
- *    The out-of-range decrypt paints `.pending-int` instead of
- *    `.recovered-int`; the fixtures table paints a failing row with a
- *    `color-mix()` tint; the boundary table paints two of each. None is
- *    reachable without driving the lab into them on purpose.
+ *  - DISCLOSURES SHIP SHUT and are opened by clicking their summaries, so the
+ *    audit trail inside them is scanned in the state a reader reaches.
  *
- *  - HOVER IS A STATE, AND IT PERSISTS AFTER A CLICK. `:hover` stays on the
- *    element under the pointer after `page.click()` resolves, and
- *    `.tab-btn:hover`, `.btn:hover` and `.btn-primary:hover` all repaint their
- *    fill — the last one through a `color-mix()` toward white that axe will
- *    not resolve. Scanned explicitly.
+ *  - HOVER IS A STATE, AND IT PERSISTS AFTER A CLICK.
  *
- *  - THE CHART IS SVG WITH REAL TEXT. Exhibit 3's axis and tick labels are
- *    `<text>` in an inline SVG over a panel fill, and its gridlines are
- *    stroke-only `<line>`. That is the shape `contrast.ts`'s `FILLED` guard
- *    exists for, so it is scanned at both ends of the bound slider.
- *
- *  - NO FIXED TIMEOUTS. Every wait is on a real DOM completion signal: a
- *    verdict's wording, a rank readout, `aria-selected`, an element count.
+ *  - NO FIXED TIMEOUTS. Every wait is on a real DOM completion signal.
  */
 export async function driveAllStates(page: Page, theme: string): Promise<void> {
   const scanAt = (s: string): Promise<void> => scan(page, `${theme} / ${s}`);
-  const tab = (name: RegExp) => page.getByRole('tab', { name });
 
-  await scanAt('arrival: exhibit 1 computed, seven panels unrendered');
+  await scanAt('arrival: stage 1 computed, four stages unrendered');
 
   // ── The shared skip link, focused ───────────────────────────────────────
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
   await page.keyboard.press('Tab');
   await expect(page.locator('a.cl-skip-link')).toBeFocused();
-  await scanAt('the shared skip link focused, slid in from top:-3rem');
+  await scanAt('the shared skip link focused');
 
-  // ── 1 · Two kinds of key ────────────────────────────────────────────────
-  // Push the inner product out of the default bound so the analyst column
-  // paints `.pending-int` — the "no answer" treatment — instead of an integer.
-  await page.locator('input[data-vec="y"][data-index="0"]').fill('9');
-  await page.locator('input[data-vec="x"][data-index="0"]').fill('9');
-  await page.locator('input[data-vec="y"][data-index="1"]').fill('9');
-  await page.locator('input[data-vec="x"][data-index="1"]').fill('9');
-  await expect(page.locator('#panel-keys [data-verdict="correctness"]')).toContainText(
-    'MATCHES THE DOT PRODUCT'
-  );
-  await scanAt('1: larger entries, still inside the bound');
-
-  // A negative inner product: the symmetric range is what finds it. Both of
-  // the first two x components are negated, so with y = (9,9,1,5) and
-  // x = (-9,-9,4,1) the product is -81-81+4+5 = -153. Negating only the first
-  // leaves +9, which is how this step originally passed while testing nothing
-  // — the assertion below names the exact value for that reason.
+  // ── The scenario bar ────────────────────────────────────────────────────
   await page.locator('input[data-vec="x"][data-index="0"]').fill('-9');
   await page.locator('input[data-vec="x"][data-index="1"]').fill('-9');
-  await expect(page.locator('#panel-keys .recovered-int')).toHaveText('-153');
-  await scanAt('1: negative inner product recovered');
+  await page.locator('input[data-vec="y"][data-index="0"]').fill('9');
+  await page.locator('input[data-vec="y"][data-index="1"]').fill('9');
+  await expect(page.locator('[data-field="scenario-expected"]')).toHaveText('-153');
+  await expect(page.locator('#panel-ask [data-field="analyst-answer"]')).toHaveText('-153');
+  await scanAt('scenario: a negative answer, recovered on both sides');
 
-  await page.getByRole('button', { name: 'Encrypt again' }).click();
-  await expect(page.locator('#panel-keys [data-verdict="correctness"]')).toContainText(
-    'MATCHES THE DOT PRODUCT'
-  );
-  await scanAt('1: re-encrypted under fresh randomness, same answer');
+  await page.locator('input[data-vec="x"][data-index="0"]').focus();
+  await scanAt('scenario: a vector input focused');
 
-  await page.getByRole('button', { name: 'New master key' }).click();
-  await expect(page.locator('#panel-keys [data-verdict="correctness"]')).toContainText(
-    'MATCHES THE DOT PRODUCT'
-  );
-  await scanAt('1: new master key, same answer');
-
-  // n = 8 is the cap, and it is the widest the control row ever gets — the
-  // shape most likely to overflow at 380px.
   await page.locator('#n-select').selectOption('8');
   await expect(page.locator('input[data-vec="x"]')).toHaveCount(8);
-  await scanAt('1: dimension at the cap, n = 8, sixteen vector inputs');
+  await scanAt('scenario: dimension at the cap, n = 8');
 
-  // A focused number input, showing its focus-visible ring on a control whose
-  // boundary is `--control-border`.
-  await page.locator('input[data-vec="x"][data-index="0"]').focus();
-  await scanAt('1: a vector input focused');
+  await page.locator('#n-select').focus();
+  await scanAt('scenario: the dimension select focused');
 
-  await page.locator('#n-select').selectOption('4');
+  await page.locator('#btn-reset').click();
+  await expect(page.locator('[data-field="scenario-expected"]')).toHaveText('15');
   await expect(page.locator('input[data-vec="x"]')).toHaveCount(4);
 
-  // A styled <select> focused: `appearance: none` plus the gradient chevron.
-  await page.locator('#n-select').focus();
-  await scanAt('1: the dimension select focused');
+  await openDisclosures(page, '#panel-ask', scanAt, '1');
 
-  // ── 2 · Decrypt ─────────────────────────────────────────────────────────
-  await openTab(page, /Decrypt/, '#panel-decrypt');
-  // The combined element, plus the five ciphertext components the panel now
-  // shows for invariant 2 — six `.group-el` boxes, one of which is the answer.
-  await expect(page.locator('#panel-decrypt [data-field="element"]')).toHaveCount(1);
-  await expect(page.locator('#panel-decrypt .group-el')).toHaveCount(6);
-  // The randomized-encryption verdict already has something to compare here:
-  // the exhibit-1 steps above edited x, and editing x re-encrypts. The
-  // no-previous-ciphertext state (tone `info`) exists only on a fresh page and
-  // is covered by the claims suite instead.
-  await expect(page.locator('#panel-decrypt [data-verdict="randomized"]')).toHaveAttribute(
+  // ── Stage 2: the staged decrypt, state by state ─────────────────────────
+  await openTab(page, /Decode the bounded/, '#panel-decode');
+  await expect(page.locator('#panel-decode [data-field="decode-idle"]')).toHaveCount(1);
+  await expect(page.locator('#panel-decode [data-field="element"]')).toHaveCount(0);
+  await scanAt('2: idle — nothing applied, no element, no integer');
+
+  await page.getByRole('button', { name: 'Apply functional key' }).click();
+  await expect(page.locator('#panel-decode [data-field="element"]')).toHaveCount(1);
+  await expect(page.locator('#panel-decode [data-verdict="search-staged"]')).toContainText(
+    'NO INTEGER EXISTS'
+  );
+  await expect(page.locator('#panel-decode .recovered-int')).toHaveCount(0);
+  await scanAt('2: applied — an opaque element and NO integer anywhere');
+
+  await page.getByRole('button', { name: 'Recover the integer' }).click();
+  await expect(page.locator('#panel-decode [data-verdict="decrypt-exact"]')).toContainText(
+    'EXPONENT RECOVERED EXACTLY'
+  );
+  await scanAt('2: done — the exponent recovered, with its operation count');
+
+  // The cost chart is measured in a worker on boot; wait for the real result
+  // rather than a timeout, then scan the chart and its slider marker.
+  await expect(page.locator('#panel-decode [data-verdict="cost-law"]')).toHaveAttribute(
     'data-tone',
     'ok'
   );
-  await expect(page.locator('#panel-decrypt [data-verdict="decrypt-exact"]')).toContainText(
-    'EXPONENT RECOVERED EXACTLY'
-  );
-  await scanAt('2: opaque group element above the recovered integer');
-
-  // Re-encrypt so the componentwise comparison has something to report: five
-  // per-component verdicts plus the summary, a state that does not exist on
-  // arrival.
-  await openTab(page, /Two kinds/, '#panel-keys');
-  await page.getByRole('button', { name: 'Encrypt again' }).click();
-  await openTab(page, /Decrypt/, '#panel-decrypt');
-  await expect(page.locator('#panel-decrypt [data-verdict="randomized"]')).toContainText(
-    'EVERY COMPONENT CHANGED'
-  );
-  await expect(page.locator('#panel-decrypt [data-verdict^="component-"]')).toHaveCount(5);
-  await scanAt('2: ciphertext compared componentwise against the previous encryption');
-
-  // ── 3 · The bottleneck ──────────────────────────────────────────────────
-  //
-  // Exhibit 3 comes before exhibit 2's failure branch on purpose, because at
-  // the DEFAULT bound that branch is unreachable: with n <= 8 and entries in
-  // [-9, 9] the largest inner product this lab can produce is 8*9*9 = 648, and
-  // the default B is 1024. No legal input goes out of range at the default,
-  // which is a property worth having (the shipped default cannot fail) and
-  // means the only honest route to the refusal is to lower B under the current
-  // answer. That is what a reader does, so it is what the drive does.
-  await openTab(page, /bottleneck/, '#panel-bottleneck');
-  await expect(page.locator('#panel-bottleneck svg')).toHaveCount(1);
-  await expect(page.locator('#panel-bottleneck [data-verdict="cost-law"]')).toContainText(
-    'SQUARE-ROOT SCALING HOLDS'
-  );
-  await expect(page.locator('#panel-bottleneck [data-verdict="range-edge"]')).toContainText(
-    'SYMMETRIC RANGE'
-  );
-  // Two of the four boundary rows are the out-of-range cases, painted with the
-  // alarm-tinted `color-mix()` row fill.
-  await expect(page.locator('#panel-bottleneck tr[data-row-state="pass"]')).toHaveCount(4);
-  await scanAt('3: cost chart, cost-law verdict and the four boundary rows');
-
-  // Both ends of the slider: the chart re-renders and the readout is a live
-  // region, so this also scans `role="status"` content mid-life.
-  await page.locator('#bound-slider').fill('3');
-  await expect(page.locator('#bound-readout')).toContainText('B = 8;');
-  await scanAt('3: bound slider at its minimum');
+  await expect(page.locator('#panel-decode svg')).toHaveCount(1);
+  await scanAt('2: the measured cost chart');
 
   await page.locator('#bound-slider').fill('21');
   await expect(page.locator('#bound-readout')).toContainText('B = 2097152;');
-  await scanAt('3: bound slider at the measured cap');
+  // Changing the bound invalidates the answer: the machine is back to idle.
+  await expect(page.locator('#panel-decode [data-field="decode-idle"]')).toHaveCount(1);
+  await scanAt('2: bound at the cap, the staged decrypt reset to idle');
 
   await page.locator('#bound-slider').focus();
-  await scanAt('3: the bound slider focused');
+  await scanAt('2: the bound slider focused');
 
-  // Drop the bound under the current answer (-153, from exhibit 1) so the
-  // search genuinely fails: B = 8 at the slider's minimum. The integer is then
-  // not rendered at all — `.pending-int` replaces it — which is the rule that
-  // a value never appears before the search finishes.
+  // The refusal branch: drop B under the answer and run the search for real.
   await page.locator('#bound-slider').fill('3');
-  await expect(page.locator('#bound-readout')).toContainText('B = 8;');
-  await openTab(page, /Decrypt/, '#panel-decrypt');
-  await expect(page.locator('#panel-decrypt [data-verdict="range-search"]')).toContainText(
+  await expect(page.locator('#bound-readout')).toContainText('OUTSIDE that range');
+  await page.getByRole('button', { name: 'Apply functional key' }).click();
+  await page.getByRole('button', { name: 'Recover the integer' }).click();
+  await expect(page.locator('#panel-decode [data-verdict="range-search"]')).toContainText(
     'SEARCH EXHAUSTED'
   );
-  await expect(page.locator('#panel-decrypt .pending-int')).toHaveCount(1);
-  await expect(page.locator('#panel-decrypt .recovered-int')).toHaveCount(0);
+  await expect(page.locator('#panel-decode .recovered-int')).toHaveCount(0);
   await scanAt('2: out of range — no integer rendered, only the exhausted-search verdict');
 
-  // Widening the bound brings the same product back into reach, which is the
-  // interaction the pair of exhibits exists to make.
-  await openTab(page, /bottleneck/, '#panel-bottleneck');
-  await page.locator('#bound-slider').fill('11');
-  await expect(page.locator('#bound-readout')).toContainText('B = 2048;');
-  await openTab(page, /Decrypt/, '#panel-decrypt');
-  await expect(page.locator('#panel-decrypt .recovered-int')).toHaveText('-153');
-  await scanAt('2: the same product now recovered, after widening B');
+  await page.locator('#bound-slider').fill('10');
+  await openDisclosures(page, '#panel-decode', scanAt, '2');
 
-  // ── 4 · Collect keys ────────────────────────────────────────────────────
-  await openTab(page, /Collect keys/, '#panel-collect');
-  await expect(page.locator('#panel-collect [data-verdict="partial"]')).toContainText(
+  // ── Stage 3: every rank ─────────────────────────────────────────────────
+  await openTab(page, /Watch knowledge/, '#panel-accumulate');
+  await expect(page.locator('#panel-accumulate [data-verdict="partial"]')).toContainText(
     '4 FREE DIMENSIONS REMAIN'
   );
-  await scanAt('4: no keys held — every x still possible');
+  await scanAt('3: no keys — every x still possible');
 
-  const requestKey = async (n: number) => {
-    await page.locator('#panel-collect button[data-request-key]').first().click();
-    await expect(page.locator('#panel-collect [data-verdict^="offer-"]')).toHaveCount(n);
-  };
-
-  await requestKey(1);
-  await expect(page.locator('#panel-collect [data-verdict="partial"]')).toContainText(
-    '3 FREE DIMENSIONS REMAIN'
-  );
-  // The evidence fixture: both candidate vectors still consistent.
-  await expect(page.locator('#panel-collect [data-verdict="two-candidates"]')).toContainText(
-    'BOTH REMAIN CONSISTENT'
-  );
-  await scanAt('4: one key held — the affine family, both candidates alive');
-
-  await requestKey(2);
-  await expect(page.locator('#panel-collect [data-verdict="partial"]')).toContainText(
-    '2 FREE DIMENSIONS REMAIN'
-  );
-  await expect(page.locator('#panel-collect [data-verdict="two-candidates"]')).toContainText(
-    'BOTH REMAIN CONSISTENT'
-  );
-  await scanAt('4: two keys held — dimension 2, still no single x drawn');
-
-  await requestKey(3);
-  await scanAt('4: three keys held — dimension 1');
-
-  await requestKey(4);
-  await expect(page.locator('#panel-collect [data-verdict="partial"]')).toContainText(
-    'x IS NOW DETERMINED'
-  );
-  await expect(page.locator('#panel-collect [data-verdict="reconstruct"]')).toContainText(
+  for (let k = 1; k <= 4; k++) {
+    await page.locator('#panel-accumulate button[data-request-key]').first().click();
+    await expect(page.locator('#panel-accumulate [data-verdict^="offer-"]')).toHaveCount(k);
+    if (k < 4) {
+      // Two generated candidates, both consistent, at every rank below n.
+      await expect(page.locator('#panel-accumulate [data-verdict="two-candidates"]')).toHaveAttribute(
+        'data-tone',
+        'ok'
+      );
+      await expect(page.locator('#panel-accumulate [data-field="candidate-a"]')).toHaveCount(1);
+      await expect(page.locator('#panel-accumulate [data-field="candidate-b"]')).toHaveCount(1);
+    }
+    await scanAt(`3: ${k} ${k === 1 ? 'key' : 'keys'} held — rank ${k}`);
+  }
+  await expect(page.locator('#panel-accumulate [data-verdict="reconstruct"]')).toContainText(
     'x RECOVERED EXACTLY'
   );
-  await scanAt('4: full rank — x pinned to one point and reconstructed exactly');
+  await scanAt('3: full rank — the family collapses to one point');
 
   await page.getByRole('button', { name: 'Return all keys' }).click();
-  await expect(page.locator('#panel-collect [data-verdict="partial"]')).toContainText(
+  await expect(page.locator('#panel-accumulate [data-verdict="partial"]')).toContainText(
     '4 FREE DIMENSIONS REMAIN'
   );
-  await scanAt('4: keys returned — the panel is back to knowing nothing');
+  await scanAt('3: keys returned');
 
-  // ── 5 · Keys alone ──────────────────────────────────────────────────────
-  await openTab(page, /Keys alone/, '#panel-alone');
-  await expect(page.locator('#panel-alone [data-verdict="rank-refusal"]')).toContainText(
+  // ── Stage 4: refusal, the policy gate, the override, the recovery ───────
+  await openTab(page, /Cross the authorization/, '#panel-cross');
+  await expect(page.locator('#panel-cross [data-verdict="rank-refusal"]')).toContainText(
     'RANK 0 OF 4'
   );
-  await scanAt('5: no keys collected');
+  await scanAt('4: nothing issued');
 
-  const collectAlone = async (n: number) => {
-    await page.locator('#panel-alone button[data-request-alone]').first().click();
-    await expect(page.locator('#panel-alone [data-verdict^="alone-offer-"]')).toHaveCount(n);
-  };
-
-  // The first four offers are rank-deficient by construction — a scalar
-  // multiple and an exact duplicate — so four keys still means refusal.
-  for (let i = 1; i <= 4; i++) await collectAlone(i);
-  await expect(page.locator('#panel-alone [data-verdict="rank-refusal"]')).toContainText(
+  for (let i = 1; i <= 4; i++) {
+    await page.locator('#panel-cross button[data-request-alone]').first().click();
+    await expect(page.locator('#panel-cross [data-verdict^="alone-offer-"]')).toHaveCount(i);
+  }
+  await expect(page.locator('#panel-cross [data-verdict="rank-refusal"]')).toContainText(
     'RANK 2 OF 4 — RECOVERY REFUSED'
   );
-  await expect(page.locator('#panel-alone .alarm-box')).toHaveCount(0);
-  await scanAt('5: four dependent keys held — rank 2, recovery refused, no s shown');
+  await expect(page.locator('#panel-cross .alarm-box')).toHaveCount(0);
+  await scanAt('4: four dependent keys — rank 2, recovery refused');
 
-  await collectAlone(5);
-  await collectAlone(6);
-  await expect(page.locator('#panel-alone [data-verdict="rank-refusal"]')).toContainText(
-    's RECOVERED'
+  // Issue the one that still adds rank but does not complete a basis.
+  await page.locator('#panel-cross button[data-request-alone]').first().click();
+  await expect(page.locator('#panel-cross [data-verdict="policy-gate"]')).toContainText('HELD');
+  await expect(page.locator('#panel-cross [data-field="completes-basis"]')).toHaveCount(1);
+  await scanAt('4: the policy gate holding the key that would complete a basis');
+
+  await page.getByRole('button', { name: 'Issue it anyway' }).click();
+  await expect(page.locator('#panel-cross [data-verdict="policy-gate"]')).toContainText(
+    'OVERRIDDEN'
   );
-  await expect(page.locator('#panel-alone [data-verdict="master"]')).toContainText(
+  await scanAt('4: override in force');
+
+  await page.locator('#panel-cross button[data-request-alone]').first().click();
+  await expect(page.locator('#panel-cross [data-verdict="master"]')).toContainText(
     'FORGED KEY DECRYPTS A FRESH CIPHERTEXT CORRECTLY'
   );
-  // The alarm treatment and the "why this is permitted" scoping only exist in
-  // this state.
-  await expect(page.locator('#panel-alone .alarm-box')).toHaveCount(1);
-  await expect(page.locator('#panel-alone [data-field="not-claimed"]')).toContainText(
+  await expect(page.locator('#panel-cross .alarm-box')).not.toHaveCount(0);
+  await expect(page.locator('#panel-cross [data-field="not-claimed"]')).toContainText(
     'adaptively secure'
   );
-  await scanAt('5: full rank — s recovered, forged key works, alarm treatment painted');
+  await scanAt('4: full rank — s recovered, the forged key works, alarm treatment painted');
 
-  await page.getByRole('button', { name: 'Return all keys' }).click();
-  await expect(page.locator('#panel-alone .alarm-box')).toHaveCount(0);
+  await openDisclosures(page, '#panel-cross', scanAt, '4');
 
-  // ── 6 · Fixtures ────────────────────────────────────────────────────────
-  await openTab(page, /Fixtures/, '#panel-fixtures');
-  await expect(page.locator('#panel-fixtures tbody tr')).toHaveCount(7);
-  // Six agree, one disagrees on purpose. The failing row is painted with an
-  // alarm-tinted `color-mix()` fill that only this state produces.
-  await expect(page.locator('#panel-fixtures tr[data-row-state="fail"]')).toHaveCount(1);
-  await expect(page.locator('#panel-fixtures tr[data-row-state="pass"]')).toHaveCount(6);
+  // ── Evidence ────────────────────────────────────────────────────────────
+  await openTab(page, /Evidence/, '#panel-evidence');
+  await expect(page.locator('#panel-evidence tr[data-row-state="fail"]')).toHaveCount(1);
   await expect(
-    page.locator('#panel-fixtures [data-verdict="wrong-fixture-detected"]')
+    page.locator('#panel-evidence [data-verdict="wrong-fixture-detected"]')
   ).toContainText('REPORTED AS DISAGREEING');
-  await scanAt('6: fixtures table with the deliberately wrong row reported failing');
-
-  // ── 7 · Where IPFE sits ─────────────────────────────────────────────────
-  await openTab(page, /Where IPFE sits/, '#panel-compare');
-  await expect(page.locator('#panel-compare .compare-grid > div')).toHaveCount(3);
-  await scanAt('7: the ABE / IPFE / FHE comparison panel');
-
-  // ── 8 · Honesty ─────────────────────────────────────────────────────────
-  await openTab(page, /Honesty/, '#panel-honesty');
-  await expect(page.locator('#panel-honesty [data-field="negative-claim"]')).toContainText(
-    'additively malleable'
-  );
   await expect(
-    page.locator('#panel-honesty [data-verdict="negative-claim-verdict"]')
+    page.locator('#panel-evidence [data-verdict="negative-claim-verdict"]')
   ).toContainText('DECRYPTED — AND MODIFIED');
-  await scanAt('8: honesty panel and the malleability exhibit');
+  await scanAt('evidence: fixtures, comparison, honesty and the negative claim');
 
-  // ── Hover states ────────────────────────────────────────────────────────
+  await openDisclosures(page, '#panel-evidence', scanAt, 'evidence');
+
+  // ── Pager and hover/focus states ────────────────────────────────────────
+  await page.getByRole('button', { name: /^←/ }).click();
+  await expect(page.getByRole('tab', { name: /Cross the authorization/ })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  );
+  await scanAt('the pager moving back a stage');
+
   await page.locator('a.cl-btn').first().hover();
   await scanAt('the shared bar GitHub control hovered');
 
-  await tab(/Fixtures/).hover();
+  await page.getByRole('tab', { name: /Evidence/ }).hover();
   await scanAt('an unselected tab hovered');
 
-  await tab(/Honesty/).hover();
+  await page.getByRole('tab', { name: /Cross the authorization/ }).hover();
   await scanAt('the selected tab hovered');
 
-  // ── Focus rings ─────────────────────────────────────────────────────────
-  await tab(/Honesty/).focus();
+  await page.getByRole('tab', { name: /Cross the authorization/ }).focus();
   await scanAt('the selected tab focused');
 
-  await openTab(page, /Two kinds/, '#panel-keys');
-  await page.getByRole('button', { name: 'New master key' }).focus();
-  await scanAt('a secondary button focused');
+  await openTab(page, /Ask one question/, '#panel-ask');
+  await page.getByRole('button', { name: /^Next/ }).or(page.locator('#btn-next')).first().focus();
+  await scanAt('the pager Next button focused');
 }

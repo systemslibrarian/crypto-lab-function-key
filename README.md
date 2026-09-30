@@ -41,37 +41,40 @@ does not write it that way.
 **Not production cryptography.** This is a teaching demo. Key material is per-session and in
 memory; nothing is persisted and there is no backend.
 
-## Exhibits
+## The four stages
 
-1. **Two kinds of key** — the same ciphertext opened two ways: an ordinary decryption that hands
-   back the whole vector, and a functional key for `y` that hands back one number. Edit either
-   vector and both sides update.
-2. **Decrypt** — the step that surprises people. Applying the functional key succeeds
-   *immediately* and yields a group element; that element **is** the answer, encoded as
-   `g^{<x,y>}`. Recovering the integer is a separate search. The panel shows the ciphertext
-   components changing completely under a fresh `r` while the decrypted element does not — which
-   is the correctness identity (the `r` terms cancel) made visible.
-3. **The bottleneck** — a slider for the bound `B`, a live operation count, and a log-log chart of
-   measured worst-case group operations against search width with the reference curve `2√W` drawn
-   over it. Plus a boundary table showing the search succeeding at exactly `±B` and refusing at
-   `±(B+1)`, in **both** directions.
-4. **Collect keys** — the analyst requests functional keys one at a time against one fixed
-   ciphertext. After each, the panel shows the exact affine set of `x` still consistent with every
-   answer, its dimension shrinking. Two deliberately chosen distinct vectors are displayed side by
-   side, both consistent, until full rank collapses the set to one point.
-5. **Keys alone** — no ciphertext at all. Since `sk_y = <s, y> mod ℓ`, each key is one linear
-   equation in `s`; `n` independent ones are a square system over a prime field. Solve it, derive
-   a key for a weight vector the authority **never issued**, and decrypt a freshly created
-   ciphertext with it correctly. A rank-deficient key set is refused with its rank shown.
-6. **Fixtures** — seeded, reproducible rows through the real scheme, printing both the computed
-   and the claimed value on every row. **One row is wrong on purpose** and must be reported as
-   disagreeing; see *What Can Go Wrong*.
-7. **Where IPFE sits** — ABE controls *whether* the plaintext is released; IPFE controls *which
-   function* of it is released; FHE lets a server compute *without learning* the plaintext. The
-   panel is careful about the ABE comparison: collusion resistance in FAME CP-ABE and linear
-   reconstruction here are different phenomena, not the same one graded differently.
-8. **Honesty** — real / modeled / not implemented, the threat model, the negative claim with its
-   evidence fixture, and the primary sources.
+The page is a guided argument, not a set of peer tabs. Four stages carry it in order, each with a
+next action; everything that exists to be *checked* rather than read lives in a fifth **Evidence**
+area. Every stage has its own URL hash, so any point in the argument can be linked to, and browser
+back/forward move between them.
+
+A persistent **scenario bar** sits directly under the hero — the vectors, the dimension, the search
+bound, Encrypt again, Reset — so the first interactive thing on the page is the thing the lab is
+about, and no stage depends on a control hidden in another one.
+
+1. **Ask one question** — the same ciphertext read two ways. The authority derives a key for each
+   basis vector `e_i` and decrypts with it, because `<x, e_i> = x_i`; the analyst holds one key and
+   gets one weighted sum. Both columns are executed. The point is the symmetry: *"the authority can
+   read everything"* and *"n independent keys read everything"* are the same mechanism run by
+   different people.
+2. **Decode the bounded answer** — two presses, not one. *Apply functional key* completes the
+   decryption and yields `g^{<x,y>}`; at that moment there is **no integer anywhere on the page**.
+   *Recover the integer* starts a baby-step giant-step search in a Web Worker and reports what it
+   found, or that it found nothing, with the operation count that got there. The cost chart plots
+   searches that actually ran, with a marker for the bound the slider is on.
+3. **Watch knowledge accumulate** — request functional keys in any order and watch the issued
+   vectors stack up as rows of a matrix `Y`, each row labelled with whether it raised the rank or
+   added an equation already implied. Below full rank the page shows **two different vectors, both
+   consistent with every answer received**, generated from the current solution set. At full rank
+   the family collapses to a point and the reconstruction is named.
+4. **Cross the authorization line** — no ciphertext at all until the last step. You are the
+   authority: each pending request shows what it would do to the rank, and the one that *completes a
+   basis* is blocked behind an explicit override, because issuing it hands over the master secret.
+   Cross that line and a key for a vector you never approved decrypts a freshly created ciphertext
+   correctly.
+
+**Evidence** — the seeded fixtures (including one that is wrong on purpose), the ABE/IPFE/FHE
+comparison, the honesty panel, the negative claim with its exhibit, and the primary sources.
 
 ## When to Use It
 
@@ -98,10 +101,11 @@ memory; nothing is persisted and there is no backend.
 
 **<https://systemslibrarian.github.io/crypto-lab-function-key/>**
 
-Edit `x` and `y` and watch the single released number track the weighted sum. Drag the bound
-slider and watch the cost curve follow `√W` rather than `W`. Lower the bound under the current
-answer and watch the search refuse rather than return something wrong. Then collect functional
-keys one at a time in exhibits 4 and 5 and watch what "only one question" adds up to.
+Edit `x` and `y` in the bar at the top and watch the released number track the weighted sum. In
+stage 2, press *Apply functional key* and sit with the fact that decryption has finished and you
+still have no number. Drag the bound below the current answer and watch the search refuse rather
+than return something wrong. Then issue keys one at a time in stages 3 and 4 and watch what "only
+one question" adds up to — and decide, as the authority, whether to issue the one that ends it.
 
 ## What Can Go Wrong
 
@@ -187,6 +191,7 @@ npm run test:a11y    # axe WCAG 2.1 A/AA gate against the production build
 npm run test:claims  # the claims suite -- does the page tell the truth
 npm run test:e2e     # functional flows, desktop + mobile viewport
 npm run test:e2e:all # everything Playwright runs
+node scripts/make-og.mjs   # regenerate public/og.png (uses the installed Chromium)
 ```
 
 The Playwright suites build first and then serve `dist/` on **port 4683** — a port checked against
@@ -249,10 +254,15 @@ pinned to an A.1 encoding or reached by negation.
 
 | Suite | Tests | Covers |
 |---|---|---|
-| `npm test` (Vitest) | **176** | RFC 9496 A.1/A.2/A.3 KATs, ABDP15 correctness, BSGS boundaries and cost law, exact rational and mod-ℓ algebra, reconstruction, master-secret recovery, rank refusal |
-| `e2e/claims.spec.ts` | **23** | invariants 1–9 rendered on the page, by independent re-derivation; the mod-ℓ scalar edge case; §4.1d negative claim; `[hidden]` probe; retirement and no-op guards; cross-checks between surfaces |
-| `e2e/a11y.spec.ts` | **2** | the axe WCAG 2.1 A/AA gate across ~30 driven states, at desktop and 380px |
-| `e2e/flows.spec.ts` | **14 × 2** | one functional scenario per exhibit, at desktop and on a mobile viewport |
+| `npm test` (Vitest) | **183** | RFC 9496 A.1/A.2/A.3 KATs, ABDP15 correctness, BSGS boundaries and cost law, exact rational and mod-ℓ algebra, reconstruction, master-secret recovery, rank refusal, full-vector recovery by basis keys, and candidate generation across **all 15 key subsets and all 24 request orders** |
+| `e2e/claims.spec.ts` | **25** | invariants 1–9 rendered on the page, by independent re-derivation; the staged-decrypt state machine and its stale-answer guard; the measured cost chart vs the closed form; every stage-3 request order; the issuance gate; §4.1d negative claim; `[hidden]` probe; URL/back-forward navigation; retirement and no-op guards |
+| `e2e/a11y.spec.ts` | **2** | the axe WCAG 2.1 A/AA gate across ~40 driven states — including every disclosure, opened by clicking its summary — at desktop and 380px |
+| `e2e/flows.spec.ts` | **16 × 2** | one functional scenario per stage, plus a responsiveness budget at the maximum bound and a layout check at 390/768/1440px, at desktop and on a mobile viewport |
+
+The Playwright suite runs on **one worker**, deliberately. The a11y gate is a measurement, and a
+measurement taken under CPU contention is a different measurement: a first parallel run had the
+gate fail against a page that passed in isolation seconds later. The same applies to the
+responsiveness budget, which times main-thread tasks.
 
 **KAT files:** `src/crypto/rfc9496-vectors.ts` (the published vectors),
 `src/crypto/ristretto.test.ts` (the gate that drives them), `src/crypto/fixtures.ts` (the lab's own
@@ -277,9 +287,39 @@ already carry the first fix, and `crypto-lab-schnorr-forge` (the gate reference 
 carries the second.
 
 **Mutation-tested (§4.1c).** Each rendered verdict has a source mutation that turns it red with the
-build still succeeding and the bundle hash moving — 12 mutations, 12 bite, including one against the
-a11y gate's own WCAG 1.4.11 oracle. See [`MUTATIONS.md`](MUTATIONS.md) for the log and for the two
-that had to be redesigned because the first attempt proved nothing.
+build still succeeding and the bundle hash moving — **17 mutations, 17 bite**, including one against
+the a11y gate's own WCAG 1.4.11 oracle and one that reintroduces each of the defects listed below.
+See [`MUTATIONS.md`](MUTATIONS.md) for the log, and for the ones that had to be redesigned because
+the first attempt proved nothing.
+
+### Four defects found by review and fixed at the root
+
+Recorded because the fixes are the interesting part, not the bugs:
+
+1. **Stage 3 called a correct answer its own error.** The two candidate vectors were fixed in
+   advance and only agreed with two particular keys, so **7 of the 15 possible key subsets**
+   legitimately ruled the second one out — and the page reported that correct outcome as
+   `CANDIDATE BOOKKEEPING IS WRONG`. The candidates are now *derived from the current solution set*
+   (the particular solution, and that solution plus a null-space basis vector), so they are
+   consistent by construction for any keys in any order. All 15 subsets and all 24 orders are
+   enumerated in `attacks.test.ts`, and four distinct orders are driven through the real UI.
+2. **Stage 1's authority column echoed its input.** It rendered the vector you typed under the
+   label "x recovered" while the panel claimed the ciphertext had been opened two ways. It now runs
+   `n` real basis-key decryptions — which is the only full decryption ABDP15 defines, and which is
+   what makes the lab's central symmetry visible rather than asserted.
+3. **The two-stage decryption was only DOM order.** Both the group element and the integer were
+   produced in the same paint, so the central surprise was described rather than experienced. It is
+   now a real state machine — idle / applied / searching / done — with the search in a Web Worker,
+   a generation counter that discards any reply whose question has changed, and no integer rendered
+   anywhere until the reader starts the search.
+4. **The cost chart said "measured" and computed.** Its points came from the closed form, never
+   from a run. They are now counters returned by searches that ran to completion against an
+   out-of-range target, with the closed-form prediction shown beside them and asserted equal — two
+   independent surfaces rather than one claim. The chart also marks the bound the slider is on.
+
+A fifth, found by the gate rather than the review: **Reset wiped the measured cost curve** and
+nothing re-measured it, leaving the chart stuck on "MEASURING" forever. The curve is a property of
+the algorithm, not of the scenario, so Reset no longer touches it.
 
 ### On `--accent`, the favicon, and the catalog category
 

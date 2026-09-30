@@ -169,6 +169,44 @@ export function decrypt(
 }
 
 /**
+ * Recover the WHOLE vector x, using only the ciphertext and the master secret.
+ *
+ * ABDP15 defines no separate "ordinary decryption" algorithm: the scheme has
+ * exactly one decryption, and it takes a functional key. So the authority gets
+ * the whole vector the only way the scheme allows — by deriving a key for each
+ * standard basis vector e_i and decrypting with it, since <x, e_i> = x_i.
+ *
+ * That is worth doing rather than shortcutting to a stored plaintext, and not
+ * only for honesty: it is the fact the lab's whole argument turns on. "The
+ * authority can read everything" and "n independent keys read everything" are
+ * THE SAME MECHANISM, run by different people. e_1..e_n is just one
+ * particularly convenient independent set. A page that printed the known input
+ * on the authority's side would be hiding exactly the symmetry it exists to
+ * teach.
+ *
+ * Costs n discrete logs, one per coordinate. Each coordinate is a single
+ * entry, so it is well inside any usable bound; a coordinate that somehow fell
+ * outside is reported as a failed search rather than guessed at.
+ */
+export function recoverFullVector(
+  msk: MasterSecretKey,
+  ciphertext: Ciphertext,
+  bound: bigint,
+): readonly DecryptResult[] {
+  if (ciphertext.n !== msk.n) {
+    throw new Error(`ciphertext dimension ${ciphertext.n} does not match msk ${msk.n}`);
+  }
+  const out: DecryptResult[] = [];
+  for (let i = 0; i < msk.n; i++) {
+    // e_i, built here rather than imported, so the basis is visible at the
+    // call site that depends on it.
+    const e = Array.from({ length: msk.n }, (_, j) => (j === i ? 1n : 0n));
+    out.push(decrypt(ciphertext, keyDer(msk, e), bound));
+  }
+  return out;
+}
+
+/**
  * Componentwise product of two ciphertexts.
  *
  * ct(x) . ct(x') = (g^{r+r'}, (h_i^{r+r'} g^{x_i + x'_i})), which is a

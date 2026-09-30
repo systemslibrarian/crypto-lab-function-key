@@ -1,97 +1,117 @@
 /**
- * Wiring: tab state, control events, and re-render.
+ * Wiring: stage navigation, URL state, control events, and the search worker.
  *
- * Panels are rendered on demand and the tab panels use the real `hidden`
- * attribute, toggled by `el.hidden`. No class rule anywhere sets `display` on a
- * `.panel`, so there is no way for a panel to paint while the code believes it
- * is hidden — the `[hidden]` cascade trap the a11y gate probes for.
+ * Three things here are load-bearing rather than plumbing.
+ *
+ * THE GENERATION GUARD. Every worker reply is checked against
+ * `state.generation` before it is allowed to paint. Anything that changes what
+ * <x, y> means bumps that counter, so a search started against one ciphertext
+ * can never publish its answer beside different inputs. Without it, editing a
+ * vector mid-search paints a stale integer that looks authoritative.
+ *
+ * URL STATE. Each stage owns a hash, and back/forward move between stages
+ * rather than leaving the page. A long-form teaching page that cannot be
+ * linked to at a particular point is one people cannot cite.
+ *
+ * REAL `hidden`, NEVER A DISPLAY CLASS. Stage panels are toggled with
+ * `el.hidden` and no CSS rule anywhere sets `display` on `.panel`, so there is
+ * no way for a panel to paint while the code believes it is hidden — the
+ * `[hidden]` cascade trap the a11y gate probes for.
  */
 
 import './styles.css';
 import {
-  ACT4_OFFERS,
-  ACT5_OFFERS,
-  makeState,
-  regenerate,
-  reencrypt,
-  renderAlone,
-  renderBottleneck,
-  renderCollect,
-  renderCompare,
-  renderDecrypt,
-  renderFixtures,
-  renderHonesty,
-  renderKeys,
-  type LabState,
-} from './ui/panels';
+  STAGE3_OFFERS,
+  STAGE4_OFFERS,
+  renderAccumulate,
+  renderAsk,
+  renderCross,
+  renderDecode,
+  renderEvidence,
+} from './ui/stages';
+import { renderScenario } from './ui/scenario';
 import { clampEntry } from './ui/dom';
 import { ENTRY_MAX, ENTRY_MIN } from './crypto/types';
-import { setup, encrypt } from './crypto/ipfe';
-import { systemSource } from './crypto/prng';
-
-type PanelId =
-  | 'keys'
-  | 'decrypt'
-  | 'bottleneck'
-  | 'collect'
-  | 'alone'
-  | 'fixtures'
-  | 'compare'
-  | 'honesty';
-
-const PANELS: readonly PanelId[] = [
-  'keys',
-  'decrypt',
-  'bottleneck',
-  'collect',
-  'alone',
-  'fixtures',
-  'compare',
-  'honesty',
-];
+import { decryptToElement, keyDer } from './crypto/ipfe';
+import { COST_LAW_BOUNDS } from './crypto/fixtures';
+import { DlogSearcher } from './ui/search';
+import {
+  STAGES,
+  STAGE_TITLES,
+  currentAnswer,
+  invalidate,
+  makeState,
+  reencrypt,
+  reset,
+  resize,
+  type LabState,
+  type StageId,
+} from './ui/state';
 
 const state: LabState = makeState();
-let active: PanelId = 'keys';
+const searcher = new DlogSearcher();
+let active: StageId = 'ask';
 
-function renderPanel(id: PanelId): string {
+/* ------------------------------------------------------------------ *
+ * Rendering
+ * ------------------------------------------------------------------ */
+
+function renderStage(id: StageId): string {
   switch (id) {
-    case 'keys':
-      return renderKeys(state);
-    case 'decrypt':
-      return renderDecrypt(state);
-    case 'bottleneck':
-      return renderBottleneck(state);
-    case 'collect':
-      return renderCollect(state);
-    case 'alone':
-      return renderAlone(state);
-    case 'fixtures':
-      return renderFixtures();
-    case 'compare':
-      return renderCompare();
-    case 'honesty':
-      return renderHonesty(state);
+    case 'ask':
+      return renderAsk(state);
+    case 'decode':
+      return renderDecode(state, searcher.degraded);
+    case 'accumulate':
+      return renderAccumulate(state);
+    case 'cross':
+      return renderCross(state);
+    case 'evidence':
+      return renderEvidence(state);
   }
 }
 
-function paint(): void {
+function paintScenario(): void {
+  const host = document.getElementById('scenario-host');
+  if (host) host.innerHTML = renderScenario(state, currentAnswer(state));
+}
+
+function paintStage(): void {
   const host = document.getElementById(`panel-${active}`);
-  if (!host) return;
-  host.innerHTML = renderPanel(active);
+  if (host) host.innerHTML = renderStage(active);
+  paintStageNav();
+}
+
+function paintStageNav(): void {
+  const i = STAGES.indexOf(active);
+  const prev = document.getElementById('btn-prev') as HTMLButtonElement | null;
+  const next = document.getElementById('btn-next') as HTMLButtonElement | null;
+  if (prev) {
+    prev.disabled = i === 0;
+    prev.textContent = i === 0 ? 'Previous' : `← ${STAGE_TITLES[STAGES[i - 1]]}`;
+  }
+  if (next) {
+    next.disabled = i === STAGES.length - 1;
+    next.textContent =
+      i === STAGES.length - 1 ? 'Next' : `${STAGE_TITLES[STAGES[i + 1]]} →`;
+  }
+  const prog = document.getElementById('stage-progress');
+  if (prog) {
+    prog.textContent = `Stage ${Math.min(i + 1, 4)} of 4${active === 'evidence' ? ' — plus evidence' : ''}`;
+  }
 }
 
 /**
- * Re-render, then put the caret back where it was.
+ * Repaint whichever surfaces the current interaction touched, then restore the
+ * caret.
  *
- * Repainting a whole panel replaces the input the reader is typing into, which
- * drops focus after every keystroke and makes the vector fields and the bound
- * slider unusable with a keyboard. Rather than splitting the render into
- * output-only fragments, the focused control is re-identified after the paint
- * by the same stable attributes the markup already carries, and its selection
- * offset is restored. Keyboard operability is a gate requirement, not a
+ * Repainting a panel replaces the input being typed into, which drops focus
+ * after every keystroke and makes the vector fields unusable with a keyboard.
+ * The focused control is re-identified afterwards by the stable attributes the
+ * markup already carries. Keyboard operability is a gate requirement, not a
  * nicety, so this is load-bearing.
  */
-function paintPreservingFocus(): void {
+function repaint(opts: { scenario?: boolean; stage?: boolean } = {}): void {
   const before = document.activeElement as HTMLInputElement | HTMLSelectElement | null;
   const id = before?.id || '';
   const vecName = (before as HTMLInputElement | null)?.dataset?.vec ?? '';
@@ -99,10 +119,11 @@ function paintPreservingFocus(): void {
   const caret =
     before && 'selectionStart' in before ? (before as HTMLInputElement).selectionStart : null;
 
-  paint();
+  if (opts.scenario) paintScenario();
+  if (opts.stage !== false) paintStage();
 
   const selector = id
-    ? `#${id}`
+    ? `#${CSS.escape(id)}`
     : vecName
       ? `input[data-vec="${vecName}"][data-index="${vecIndex}"]`
       : '';
@@ -114,138 +135,153 @@ function paintPreservingFocus(): void {
     try {
       after.setSelectionRange(caret, caret);
     } catch {
-      // Some input types refuse selection APIs; focus alone is the win here.
+      // Some input types refuse selection APIs; focus alone is the win.
     }
   }
 }
 
-function selectTab(id: PanelId, focus = true): void {
+/* ------------------------------------------------------------------ *
+ * Stage navigation
+ * ------------------------------------------------------------------ */
+
+function selectStage(id: StageId, opts: { focus?: boolean; push?: boolean } = {}): void {
   active = id;
-  for (const p of PANELS) {
-    const btn = document.getElementById(`tab-${p}`);
-    const panel = document.getElementById(`panel-${p}`);
+  for (const s of STAGES) {
+    const btn = document.getElementById(`tab-${s}`);
+    const panel = document.getElementById(`panel-${s}`);
     if (!btn || !panel) continue;
-    const on = p === id;
+    const on = s === id;
     btn.setAttribute('aria-selected', on ? 'true' : 'false');
     if (on) btn.removeAttribute('tabindex');
     else btn.setAttribute('tabindex', '-1');
-    // Toggle the real attribute, never a display class.
     panel.hidden = !on;
     if (!on) panel.innerHTML = '';
   }
-  paint();
-  if (focus) document.getElementById(`tab-${id}`)?.focus();
+  paintStage();
+
+  if (opts.push !== false && window.location.hash !== `#${id}`) {
+    history.pushState({ stage: id }, '', `#${id}`);
+  }
+  if (opts.focus) document.getElementById(`tab-${id}`)?.focus();
 }
 
-/** Rebuild keys and ciphertext for a new dimension, truncating or padding x and y. */
-function resize(n: number): void {
-  const fit = (v: bigint[]): bigint[] => {
-    const out = v.slice(0, n);
-    while (out.length < n) out.push(1n);
-    return out;
+function stageFromHash(): StageId {
+  const h = window.location.hash.replace(/^#/, '');
+  return (STAGES as readonly string[]).includes(h) ? (h as StageId) : 'ask';
+}
+
+/* ------------------------------------------------------------------ *
+ * The search, and the cost measurement
+ * ------------------------------------------------------------------ */
+
+async function runSearch(): Promise<void> {
+  const generation = state.generation;
+  state.decode = 'searching';
+  repaint();
+
+  const key = keyDer(state.keys.msk, state.y);
+  const element = decryptToElement(state.ciphertext, key);
+  const outcome = await searcher.search(element, state.bound);
+
+  // Superseded, or the question changed underneath it. Dropping the reply is
+  // the whole point of the guard.
+  if (outcome === null || generation !== state.generation) return;
+
+  state.decodeResult = {
+    found: outcome.found,
+    value: outcome.value,
+    ops: outcome.ops,
+    tableSize: outcome.tableSize,
+    elapsedMs: outcome.elapsedMs,
+    generation,
   };
-  state.n = n;
-  state.x = fit(state.x);
-  state.y = fit(state.y);
-  const source = systemSource();
-  state.keys = setup(n, source);
-  state.ciphertext = encrypt(state.keys.mpk, state.x, source);
+  state.decode = 'done';
+  repaint();
 }
 
-function wireTabs(): void {
-  const list = document.querySelector('.tab-list');
-  if (!list) return;
+async function measureCost(): Promise<void> {
+  if (state.cost !== null || state.costPending) return;
+  state.costPending = true;
+  const points = await searcher.measureCost(COST_LAW_BOUNDS);
+  state.cost = points;
+  state.costPending = false;
+  if (active === 'decode') repaint();
+}
 
-  list.addEventListener('click', (ev) => {
+/* ------------------------------------------------------------------ *
+ * Events
+ * ------------------------------------------------------------------ */
+
+function wireNav(): void {
+  const list = document.querySelector('.tab-list');
+  list?.addEventListener('click', (ev) => {
     const btn = (ev.target as HTMLElement | null)?.closest<HTMLElement>('[data-panel]');
     if (!btn) return;
-    selectTab(btn.dataset.panel as PanelId, false);
+    selectStage(btn.dataset.panel as StageId);
   });
 
-  // Arrow-key navigation across the tablist, per the ARIA tabs pattern.
-  list.addEventListener('keydown', (ev) => {
+  list?.addEventListener('keydown', (ev) => {
     const e = ev as KeyboardEvent;
-    const i = PANELS.indexOf(active);
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    const i = STAGES.indexOf(active);
+    const go = (j: number): void => {
       e.preventDefault();
-      selectTab(PANELS[(i + 1) % PANELS.length]);
-    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      selectTab(PANELS[(i - 1 + PANELS.length) % PANELS.length]);
-    } else if (e.key === 'Home') {
-      e.preventDefault();
-      selectTab(PANELS[0]);
-    } else if (e.key === 'End') {
-      e.preventDefault();
-      selectTab(PANELS[PANELS.length - 1]);
-    }
+      selectStage(STAGES[(j + STAGES.length) % STAGES.length], { focus: true });
+    };
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') go(i + 1);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') go(i - 1);
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(STAGES.length - 1);
+  });
+
+  document.getElementById('btn-prev')?.addEventListener('click', () => {
+    const i = STAGES.indexOf(active);
+    if (i > 0) selectStage(STAGES[i - 1]);
+  });
+  document.getElementById('btn-next')?.addEventListener('click', () => {
+    const i = STAGES.indexOf(active);
+    if (i < STAGES.length - 1) selectStage(STAGES[i + 1]);
+  });
+
+  window.addEventListener('popstate', () => {
+    selectStage(stageFromHash(), { push: false });
   });
 }
 
-function wirePanelEvents(): void {
-  const main = document.querySelector('main');
-  if (!main) return;
+function wireScenario(): void {
+  const host = document.getElementById('scenario-host');
+  if (!host) return;
 
-  main.addEventListener('click', (ev) => {
+  host.addEventListener('click', (ev) => {
     const t = (ev.target as HTMLElement | null)?.closest<HTMLElement>('button');
     if (!t) return;
-
-    if (t.id === 'btn-regen') {
-      regenerate(state);
-      paint();
-      return;
-    }
     if (t.id === 'btn-reencrypt') {
       reencrypt(state);
-      paint();
-      return;
-    }
-    if (t.id === 'btn-reset-collect') {
-      state.collected = [];
-      paint();
-      return;
-    }
-    if (t.id === 'btn-reset-alone') {
-      state.aloneCollected = [];
-      paint();
-      return;
-    }
-    const req = t.dataset.requestKey;
-    if (req !== undefined) {
-      const i = Number(req);
-      if (i >= 0 && i < ACT4_OFFERS.length && !state.collected.includes(i)) {
-        state.collected.push(i);
-      }
-      paint();
-      return;
-    }
-    const alone = t.dataset.requestAlone;
-    if (alone !== undefined) {
-      const i = Number(alone);
-      if (i >= 0 && i < ACT5_OFFERS.length && !state.aloneCollected.includes(i)) {
-        state.aloneCollected.push(i);
-      }
-      paint();
+      searcher.cancelAll();
+      repaint({ scenario: true });
+    } else if (t.id === 'btn-reset') {
+      reset(state);
+      searcher.cancelAll();
+      repaint({ scenario: true });
     }
   });
 
-  main.addEventListener('input', (ev) => {
+  host.addEventListener('input', (ev) => {
     const el = ev.target as HTMLInputElement | HTMLSelectElement | null;
     if (!el) return;
 
     if (el.id === 'bound-slider') {
-      const e = Number((el as HTMLInputElement).value);
-      state.bound = 2n ** BigInt(e);
-      paintPreservingFocus();
+      state.bound = 2n ** BigInt(Number((el as HTMLInputElement).value));
+      invalidate(state);
+      searcher.cancelAll();
+      repaint({ scenario: true });
       return;
     }
-
     if (el.id === 'n-select') {
-      resize(Number((el as HTMLSelectElement).value));
-      paintPreservingFocus();
+      resize(state, Number((el as HTMLSelectElement).value));
+      searcher.cancelAll();
+      repaint({ scenario: true });
       return;
     }
-
     const which = (el as HTMLInputElement).dataset.vec;
     if (which === 'x' || which === 'y') {
       const idx = Number((el as HTMLInputElement).dataset.index);
@@ -256,16 +292,85 @@ function wirePanelEvents(): void {
         reencrypt(state);
       } else {
         state.y[idx] = val;
+        invalidate(state);
       }
-      paintPreservingFocus();
+      searcher.cancelAll();
+      repaint({ scenario: true });
     }
   });
 }
 
+function wireStages(): void {
+  const main = document.querySelector('main');
+  main?.addEventListener('click', (ev) => {
+    const t = (ev.target as HTMLElement | null)?.closest<HTMLElement>('button');
+    if (!t || t.hasAttribute('disabled')) return;
+
+    if (t.id === 'btn-apply') {
+      state.decode = 'applied';
+      repaint();
+      return;
+    }
+    if (t.id === 'btn-recover' || t.id === 'btn-redo-search') {
+      void runSearch();
+      return;
+    }
+    if (t.id === 'btn-restart-decode') {
+      searcher.cancelAll();
+      invalidate(state);
+      repaint();
+      return;
+    }
+    if (t.id === 'btn-reset-collect') {
+      state.collected = [];
+      repaint();
+      return;
+    }
+    if (t.id === 'btn-reset-alone') {
+      state.aloneCollected = [];
+      state.overrode = false;
+      repaint();
+      return;
+    }
+    if (t.id === 'btn-override') {
+      state.overrode = true;
+      repaint();
+      return;
+    }
+    const req = t.dataset.requestKey;
+    if (req !== undefined) {
+      const i = Number(req);
+      if (i >= 0 && i < STAGE3_OFFERS.length && !state.collected.includes(i)) {
+        state.collected.push(i);
+      }
+      repaint();
+      return;
+    }
+    const alone = t.dataset.requestAlone;
+    if (alone !== undefined) {
+      const i = Number(alone);
+      if (i >= 0 && i < STAGE4_OFFERS.length && !state.aloneCollected.includes(i)) {
+        state.aloneCollected.push(i);
+      }
+      repaint();
+    }
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Boot
+ * ------------------------------------------------------------------ */
+
 function boot(): void {
-  wireTabs();
-  wirePanelEvents();
-  selectTab('keys', false);
+  paintScenario();
+  wireNav();
+  wireScenario();
+  wireStages();
+  selectStage(stageFromHash(), { push: false });
+  // Measure the cost curve once, in the background. It is the same worker the
+  // staged search uses, so this also proves the worker is alive before the
+  // reader presses anything.
+  void measureCost();
 }
 
 if (document.readyState === 'loading') {

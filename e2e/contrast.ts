@@ -538,15 +538,14 @@ export async function auditContrast(
       // that subtree — so the `display`/rect tests above all pass for text
       // that paints nothing. `checkVisibility()` catches it.
       //
-      // THIS LAB SHIPS NO <details> AT ALL, so that exact shape is absent
-      // here; progressive disclosure is done with the tab strip instead, and
-      // a non-active tabpanel is `hidden` AND emptied, which the tests above
-      // already handle. The guard stays for the OTHER thing it catches, which
-      // this page does have: `content-visibility` and the same
-      // last-laid-out-geometry behaviour apply to any subtree the browser
-      // skips, and a tabpanel mid-transition is one. It is a measurement
-      // rather than a claim about the markup, which is the standing this file
-      // wants every guard to have.
+      // THIS LAB SHIPS `<details class="disclose">` THROUGHOUT, so the shape is
+      // live here. Progressive disclosure is how the audit trail — raw group
+      // encodings, the canonical-scalar check, the boundary table, every
+      // measured cost run, the malleability derivation — stays available
+      // without dominating the default reading path. Each one ships SHUT, and
+      // the gate opens them by clicking their `<summary>`, which is the route a
+      // reader has, rather than setting `.open` from script. Without this guard
+      // every closed disclosure's body would be measured as though it painted.
       if ((el as HTMLElement).checkVisibility?.() === false) return false;
       const r = rectOf(el);
       if (r.width <= 0 || r.height <= 0) return false;

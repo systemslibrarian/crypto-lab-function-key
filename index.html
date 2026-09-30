@@ -26,7 +26,19 @@
       content="Real ABDP15 inner-product functional encryption over ristretto255: a key that releases one number, the discrete-log bottleneck that bounds it, and what enough keys add up to."
     />
     <meta property="og:url" content="https://systemslibrarian.github.io/crypto-lab-function-key/" />
-    <meta name="twitter:card" content="summary" />
+    <!--
+      The card shows the rank-collapse moment rather than the title, because
+      that is the one image carrying what the lab is about. Generated from a
+      real render by scripts/make-og.mjs and committed, so no build step has to
+      launch a browser to produce a static asset. Absolute URL: scrapers do not
+      resolve relative ones.
+    -->
+    <meta property="og:image" content="https://systemslibrarian.github.io/crypto-lab-function-key/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="A four-row matrix of issued key vectors beside the note that three independent keys leave the plaintext a plane and the fourth leaves it a point, ending with x equals 2, 3, 1, 4." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://systemslibrarian.github.io/crypto-lab-function-key/og.png" />
     <meta name="twitter:title" content="Function Key — crypto-lab" />
     <meta
       name="twitter:description"
@@ -174,10 +186,9 @@
           <h1 class="cl-hero-title">Function Key</h1>
           <p class="cl-hero-sub">Inner-product functional encryption · DDH (ABDP15) · ristretto255</p>
           <p class="cl-hero-desc">
-            Encrypt a vector, then open it two ways — an ordinary decryption that hands back the
-            whole vector, and a functional key for <code>y</code> that hands back only
-            <code>&lt;x, y&gt;</code> — and watch where the second one runs out of room and what
-            happens once you hold enough of them.
+            Encrypt a vector, hand out a key that answers one question about it — the weighted
+            sum <code>&lt;x, y&gt;</code> — then watch where that one answer runs out of room, and
+            what happens once you have handed out enough of them.
           </p>
         </div>
         <aside class="cl-hero-why" aria-label="Why it matters">
@@ -185,59 +196,46 @@
           <p class="cl-hero-why-text">
             Releasing a statistic without releasing the records is the shape of almost every real
             data-sharing request, and functional encryption is the version of that with a proof
-            attached rather than a promise. The catch is worth knowing before you rely on it: the
-            authority that issues those keys is deciding, one key at a time, how much of the
-            plaintext it has already given away — and there is a point past which it has given away
-            everything.
+            attached rather than a promise. The catch is worth knowing first: the authority issuing
+            those keys is deciding, one key at a time, how much of the plaintext it has already
+            given away — and there is a point past which it has given away all of it.
           </p>
         </aside>
       </div>
 
-      <div class="card card-intro">
-        <h2>What is this?</h2>
-        <p class="lede">
-          Normal encryption is all-or-nothing: either you hold the key and see the whole message, or
-          you do not and see nothing. <strong>Functional encryption</strong> adds a middle setting.
-          The authority can issue a key that answers exactly one question about the encrypted data
-          and nothing else.
-        </p>
-        <p>
-          The question here is a weighted sum. If the encrypted vector <code>x</code> is a row of
-          numbers — say a patient's lab values, or a term's coursework marks — then a key for the
-          weight vector <code>y</code> returns the single number
-          <code>&lt;x, y&gt; = x₁y₁ + x₂y₂ + …</code>, the weighted total. The key holder learns the
-          average, or the score, or the subtotal. They do not learn the row.
-        </p>
-        <p>
-          That much is the good news, and it is real — the scheme on this page is the published one
-          and the arithmetic is genuine. The rest of the page is about the two places it stops being
-          that tidy, both of which you can run yourself here rather than take on trust.
-        </p>
-      </div>
+      <!--
+        The scenario bar renders here, immediately under the hero, so the first
+        interactive thing on the page is the thing the lab is about. It is one
+        persistent set of controls shared by every stage: before this, proving
+        randomized encryption meant navigating back to another panel to press a
+        button, and reaching the out-of-range refusal meant changing B in a
+        third one.
+      -->
+      <div id="scenario-host"></div>
 
-      <nav class="tabs" aria-label="Exhibits">
-        <div class="tab-list" role="tablist" aria-label="Function Key exhibits">
-          <button class="tab-btn" role="tab" id="tab-keys" aria-selected="true" aria-controls="panel-keys" data-panel="keys">1 · Two kinds of key</button>
-          <button class="tab-btn" role="tab" id="tab-decrypt" aria-selected="false" aria-controls="panel-decrypt" data-panel="decrypt" tabindex="-1">2 · Decrypt</button>
-          <button class="tab-btn" role="tab" id="tab-bottleneck" aria-selected="false" aria-controls="panel-bottleneck" data-panel="bottleneck" tabindex="-1">3 · The bottleneck</button>
-          <button class="tab-btn" role="tab" id="tab-collect" aria-selected="false" aria-controls="panel-collect" data-panel="collect" tabindex="-1">4 · Collect keys</button>
-          <button class="tab-btn" role="tab" id="tab-alone" aria-selected="false" aria-controls="panel-alone" data-panel="alone" tabindex="-1">5 · Keys alone</button>
-          <button class="tab-btn" role="tab" id="tab-fixtures" aria-selected="false" aria-controls="panel-fixtures" data-panel="fixtures" tabindex="-1">6 · Fixtures</button>
-          <button class="tab-btn" role="tab" id="tab-compare" aria-selected="false" aria-controls="panel-compare" data-panel="compare" tabindex="-1">7 · Where IPFE sits</button>
-          <button class="tab-btn" role="tab" id="tab-honesty" aria-selected="false" aria-controls="panel-honesty" data-panel="honesty" tabindex="-1">8 · Honesty</button>
+      <nav class="stages-nav" aria-label="Stages">
+        <p class="stage-progress" id="stage-progress" role="status" aria-live="polite">Stage 1 of 4</p>
+        <div class="tab-list" role="tablist" aria-label="Function Key stages">
+          <button class="tab-btn" role="tab" id="tab-ask" aria-selected="true" aria-controls="panel-ask" data-panel="ask"><span class="tab-n">1</span> Ask one question</button>
+          <button class="tab-btn" role="tab" id="tab-decode" aria-selected="false" aria-controls="panel-decode" data-panel="decode" tabindex="-1"><span class="tab-n">2</span> Decode the bounded answer</button>
+          <button class="tab-btn" role="tab" id="tab-accumulate" aria-selected="false" aria-controls="panel-accumulate" data-panel="accumulate" tabindex="-1"><span class="tab-n">3</span> Watch knowledge accumulate</button>
+          <button class="tab-btn" role="tab" id="tab-cross" aria-selected="false" aria-controls="panel-cross" data-panel="cross" tabindex="-1"><span class="tab-n">4</span> Cross the authorization line</button>
+          <button class="tab-btn tab-evidence" role="tab" id="tab-evidence" aria-selected="false" aria-controls="panel-evidence" data-panel="evidence" tabindex="-1">Evidence</button>
         </div>
       </nav>
 
       <main>
-        <section id="panel-keys" class="panel" role="tabpanel" aria-labelledby="tab-keys" tabindex="0"></section>
-        <section id="panel-decrypt" class="panel" role="tabpanel" aria-labelledby="tab-decrypt" tabindex="0" hidden></section>
-        <section id="panel-bottleneck" class="panel" role="tabpanel" aria-labelledby="tab-bottleneck" tabindex="0" hidden></section>
-        <section id="panel-collect" class="panel" role="tabpanel" aria-labelledby="tab-collect" tabindex="0" hidden></section>
-        <section id="panel-alone" class="panel" role="tabpanel" aria-labelledby="tab-alone" tabindex="0" hidden></section>
-        <section id="panel-fixtures" class="panel" role="tabpanel" aria-labelledby="tab-fixtures" tabindex="0" hidden></section>
-        <section id="panel-compare" class="panel" role="tabpanel" aria-labelledby="tab-compare" tabindex="0" hidden></section>
-        <section id="panel-honesty" class="panel" role="tabpanel" aria-labelledby="tab-honesty" tabindex="0" hidden></section>
+        <section id="panel-ask" class="panel" role="tabpanel" aria-labelledby="tab-ask" tabindex="0"></section>
+        <section id="panel-decode" class="panel" role="tabpanel" aria-labelledby="tab-decode" tabindex="0" hidden></section>
+        <section id="panel-accumulate" class="panel" role="tabpanel" aria-labelledby="tab-accumulate" tabindex="0" hidden></section>
+        <section id="panel-cross" class="panel" role="tabpanel" aria-labelledby="tab-cross" tabindex="0" hidden></section>
+        <section id="panel-evidence" class="panel" role="tabpanel" aria-labelledby="tab-evidence" tabindex="0" hidden></section>
       </main>
+
+      <nav class="stage-pager" aria-label="Stage navigation">
+        <button class="btn" type="button" id="btn-prev">Previous</button>
+        <button class="btn btn-primary" type="button" id="btn-next">Next</button>
+      </nav>
 
       <footer class="scripture-footer">
         <p class="footer-links">

@@ -820,3 +820,416 @@ tr[data-row-state='fail'] {
     margin-bottom: 0.5rem;
   }
 }
+
+/* ---------------------------------------------------------------- *
+ * The scenario bar — persistent, directly under the hero
+ *
+ * This is the first interactive thing on the page, and that placement is
+ * the point: the controls used to begin ~998px down on desktop and ~1893px
+ * down on a phone, behind the hero, an intro card, a tab list and a heading.
+ * ---------------------------------------------------------------- */
+
+.scenario {
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-live);
+  border-radius: var(--radius);
+  padding: 0.9rem 1.05rem;
+  margin: 0 0 1.2rem;
+}
+
+.sc-equation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem 0.9rem;
+}
+
+.sc-vec,
+.sc-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sc-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.sc-hint {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.sc-op {
+  font-size: 1.3rem;
+  color: var(--text-muted);
+  padding-bottom: 1.1rem;
+}
+
+.sc-value {
+  font-family: var(--mono);
+  font-size: clamp(1.3rem, 3.2vw, 1.8rem);
+  font-weight: 700;
+  color: var(--accent-live);
+  line-height: 1.1;
+}
+
+.sc-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem 1rem;
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+
+.field-grow {
+  flex: 1 1 14rem;
+}
+
+.sc-readout {
+  margin: 0.6rem 0 0;
+}
+
+/* ---------------------------------------------------------------- *
+ * Stage navigation
+ * ---------------------------------------------------------------- */
+
+.stages-nav {
+  margin: 0 0 1.1rem;
+}
+
+.stage-progress {
+  margin: 0 0 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.tab-n {
+  display: inline-grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0.35rem;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.tab-evidence {
+  margin-left: auto;
+}
+
+.stage-pager {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin: 1.6rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.stage-head {
+  margin: 0 0 1rem;
+}
+
+.lede {
+  font-size: 1.02rem;
+  color: var(--text);
+  max-width: 68ch;
+}
+
+.takeaway {
+  border-left: 3px solid var(--accent-live);
+  background-color: var(--surface-2);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 0.8rem 1rem;
+  margin: 1rem 0;
+  font-size: 0.98rem;
+}
+
+.scenario-note {
+  margin: 0.4rem 0 0;
+}
+
+/* ---------------------------------------------------------------- *
+ * Progressive disclosure
+ *
+ * The audit trail is kept, not removed — it moves behind a summary so the
+ * default reading path is one result and one explanation per stage. The
+ * a11y gate opens every one of these by clicking its summary, which is the
+ * route a reader has.
+ * ---------------------------------------------------------------- */
+
+.disclose {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  margin: 0 0 1rem;
+}
+
+.disclose > summary {
+  cursor: pointer;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  /* The marker is a second signal beside the wording, so open/closed is never
+     carried by position alone. */
+  list-style-position: inside;
+}
+
+.disclose > summary:hover {
+  color: var(--text);
+}
+
+.disclose[open] > summary {
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.disclose-body {
+  padding: 0.85rem 0.9rem 0.2rem;
+}
+
+/* ---------------------------------------------------------------- *
+ * Stage 1 columns, stage 2 staging
+ * ---------------------------------------------------------------- */
+
+.col-authority,
+.col-analyst {
+  border-top: 3px solid var(--border);
+}
+
+.col-authority {
+  border-top-color: var(--warn);
+}
+
+.col-analyst {
+  border-top-color: var(--accent-live);
+}
+
+.recovered-vec {
+  font-family: var(--mono);
+  font-size: clamp(1.1rem, 2.6vw, 1.45rem);
+  font-weight: 700;
+  color: var(--ok);
+  overflow-wrap: anywhere;
+}
+
+.recovered-vec.cand {
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+.cand-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.9rem;
+}
+
+.cand-pair > div {
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.9rem;
+}
+
+.staged .group-el-hero {
+  font-size: 0.82rem;
+  border-style: solid;
+  border-color: var(--control-border);
+}
+
+.staged-step {
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px dashed var(--border);
+}
+
+.staged-empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.revealed {
+  border-color: var(--ok);
+  border-left: 4px solid var(--ok);
+}
+
+/* ---------------------------------------------------------------- *
+ * The rank matrix
+ * ---------------------------------------------------------------- */
+
+.matrix-block {
+  margin: 1rem 0;
+}
+
+.mx-eq {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin: 0 0 0.45rem;
+}
+
+table.matrix td.mx-cell {
+  font-family: var(--mono);
+  font-weight: 700;
+}
+
+table.matrix td.mx-cell[data-zero='true'] {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+table.matrix tr[data-independent='false'] th[scope='row'],
+table.matrix tr[data-independent='false'] td {
+  color: var(--text-muted);
+}
+
+.mx-empty {
+  color: var(--text-muted);
+  font-style: normal;
+}
+
+.mx-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem 1.4rem;
+  margin-top: 0.7rem;
+}
+
+.mx-meter {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.mx-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.mx-stats > div {
+  display: flex;
+  gap: 0.35rem;
+  align-items: baseline;
+}
+
+.mx-stats dt {
+  color: var(--text-dim);
+}
+
+.mx-stats dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------- *
+ * Key offers and the issuance gate
+ * ---------------------------------------------------------------- */
+
+.key-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.offer-note {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.offer-danger {
+  color: var(--alarm);
+}
+
+.key-list li.li-danger {
+  border-color: var(--alarm);
+}
+
+.btn-danger {
+  border-color: var(--alarm);
+  color: var(--alarm);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--alarm) 14%, transparent);
+}
+
+.swatch-dash {
+  background-color: transparent;
+  border-style: dashed;
+  border-width: 2px;
+}
+
+tr[data-row-state='current'] {
+  background-color: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+
+tr[data-row-state='neutral'] td,
+tr[data-row-state='neutral'] th {
+  background-color: color-mix(in srgb, var(--text-muted) 7%, transparent);
+}
+
+@media (max-width: 640px) {
+  .sc-equation {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .sc-op {
+    display: none;
+  }
+  .sc-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .stage-pager {
+    flex-direction: column;
+  }
+  .tab-evidence {
+    margin-left: 0;
+  }
+  /* A scroll cue on wide tables, so a table that continues off-screen says so
+     rather than simply ending. */
+  .table-scroll {
+    background:
+      linear-gradient(to right, var(--surface) 30%, transparent),
+      linear-gradient(to left, var(--surface) 30%, transparent) 100% 0,
+      radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.5), transparent),
+      radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.5), transparent) 100% 0;
+    background-repeat: no-repeat;
+    background-size:
+      40px 100%,
+      40px 100%,
+      14px 100%,
+      14px 100%;
+    background-attachment: local, local, scroll, scroll;
+  }
+}
+
+/* A sticky first column on wide tables at phone width. The matrix and the
+   fixture table both run past 390px, and without this the row label scrolls
+   away with the data, leaving a grid of numbers with nothing naming the rows. */
+@media (max-width: 640px) {
+  table.matrix th[scope='row'],
+  table th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background-color: var(--surface-2);
+  }
+}
