@@ -135,18 +135,58 @@ test('the authority column comes from decryptions, not from the input field', as
   expect(await fieldText(page, '#panel-ask', 'authority-vector')).toBe(`(${x.join(', ')})`);
   expect(await verdictTone(page, 'authority-recovery')).toBe('ok');
 
-  // The mechanism claim: each coordinate is <x, e_i>, an ordinary functional
-  // key answer. Recomputed here for every basis vector.
+  // THE CROSS-CHECK THAT MAKES THIS TEST BITE. The headline vector and the
+  // per-coordinate basis-key table are two surfaces: the table is built from
+  // the n DecryptResults, the headline from the values read out of them. A
+  // version that echoed the input field for the headline would still render a
+  // correct-looking vector -- it renders the same characters -- so asserting
+  // the headline alone proves nothing. Asserting the two AGREE is what a
+  // mutation can break, and the mutation log records that this test did not
+  // bite until the table existed.
+  await openDisclosures(page, '#panel-ask');
   for (let i = 0; i < x.length; i++) {
+    const coord = await fieldText(page, '#panel-ask', `coord-${i}`);
+    expect(coord, `coordinate ${i}: the basis-key row must be a real recovered value`).toBe(
+      String(x[i]),
+    );
+    // And each coordinate is <x, e_i>, recomputed here.
     const e = x.map((_, j) => (j === i ? 1n : 0n));
     expect(dotProduct(x, e), `coordinate ${i} must equal <x, e_${i + 1}>`).toBe(x[i]);
   }
+  // The headline is exactly the table's recovered column, in order.
+  const fromTable: string[] = [];
+  for (let i = 0; i < x.length; i++) {
+    fromTable.push(await fieldText(page, '#panel-ask', `coord-${i}`));
+  }
+  expect(await fieldText(page, '#panel-ask', 'authority-vector')).toBe(`(${fromTable.join(', ')})`);
 
   // A re-encryption does not change it: it is a property of the plaintext,
   // reached through whatever ciphertext currently exists.
   await page.getByRole('button', { name: 'Encrypt again' }).click();
   expect(await fieldText(page, '#panel-ask', 'authority-vector')).toBe(`(${x.join(', ')})`);
   expect(await verdictTone(page, 'authority-recovery')).toBe('ok');
+
+  // THE STATE THAT SEPARATES "decrypted" FROM "echoed", and the reason this
+  // test exists at all. Everything above renders identically whether the
+  // column decrypts or copies the input field, because a correct decryption
+  // and the input ARE the same characters. They differ only where the
+  // decryption can fail — so drop B under an entry and require the column to
+  // refuse. A version reading the input field would happily print 9 here.
+  await setVec(page, 'x', 0, '9');
+  await page.locator('#bound-slider').fill('3'); // B = 8, below the entry 9
+  await expect(page.locator('#panel-ask [data-field="authority-vector"]')).toContainText(
+    'fell outside the range',
+  );
+  expect(await verdictTone(page, 'authority-recovery')).toBe('fail');
+
+  // Widen it again and the column recovers, so the refusal was about the bound
+  // and not about a broken column.
+  await page.locator('#bound-slider').fill('10');
+  expect(await verdictTone(page, 'authority-recovery')).toBe('ok');
+  await expect(page.locator('#panel-ask [data-field="authority-vector"]')).not.toContainText(
+    'fell outside',
+  );
+
 });
 
 /* ------------------------------------------------------------------ *

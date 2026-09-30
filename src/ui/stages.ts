@@ -44,7 +44,6 @@ import {
   PARTIAL_KNOWLEDGE,
   RANK_DEFICIENT_YS,
 } from '../crypto/fixtures';
-import { ENTRY_MAX } from '../crypto/types';
 import type { FunctionalKey } from '../crypto/types';
 import { costChart, costTable, type CostPoint } from './chart';
 import { analyseRows, renderMatrix } from './matrix';
@@ -61,18 +60,6 @@ function dot(x: readonly bigint[], y: readonly bigint[]): bigint {
   for (let i = 0; i < x.length; i++) acc += x[i] * y[i];
   return acc;
 }
-
-/**
- * The bound used when reading ONE coordinate.
- *
- * A coordinate is a single entry, so its range is the entry range — not the
- * inner-product range, which has to hold a sum of n products. Using the
- * smaller bound here is not a shortcut: it is the correct bound for the
- * question being asked, and it keeps the authority's n searches cheap enough
- * to run inline while the analyst's single search is the one that gets the
- * worker and the staged reveal.
- */
-const COORD_BOUND = BigInt(ENTRY_MAX);
 
 function details(summary: string, body: string, open = false): string {
   return (
@@ -95,7 +82,21 @@ export function renderAsk(state: LabState): string {
   // THE AUTHORITY'S SIDE IS NOW EXECUTED, not echoed. ABDP15 defines no
   // separate full decryption, so the whole vector is read the only way the
   // scheme allows: one functional key per basis vector.
-  const coords = recoverFullVector(msk, state.ciphertext, COORD_BOUND);
+  // THE AUTHORITY SEARCHES UNDER THE SAME BOUND AS EVERYONE ELSE.
+  //
+  // It would be cheaper to give these n searches a private bound of ENTRY_MAX,
+  // since a coordinate is a single entry and can never exceed it. That was the
+  // first version, and it was wrong in a way worth recording: it made this
+  // column incapable of failing, and a column that cannot fail is one whose
+  // value could equally well have been copied from the input field. Nothing
+  // observable distinguished the two.
+  //
+  // Under the shipped bound the distinction is reachable: drop B below an
+  // entry and the authority's own searches start refusing, exactly as the
+  // analyst's do. That is also the more honest teaching — there is one
+  // mechanism and one bottleneck here, not a privileged path for the authority
+  // and a limited one for everyone else.
+  const coords = recoverFullVector(msk, state.ciphertext, state.bound);
   const recovered = coords.map((c) => (c.dlog.found ? c.dlog.value : null));
   const allFound = recovered.every((v) => v !== null);
   const matchesInput = allFound && recovered.every((v, i) => v === state.x[i]);
@@ -136,7 +137,9 @@ export function renderAsk(state: LabState): string {
     `<p class="footnote">` +
     `Nothing here reads the vector you typed. Each number above came out of a real decryption ` +
     `of this ciphertext under a real functional key — which is exactly why this column and ` +
-    `stage 3 are the same mechanism run by different people.` +
+    `stage 3 are the same mechanism run by different people. It is also why this column can ` +
+    `<strong>fail</strong>: drop B below one of the entries and the authority's own searches ` +
+    `start refusing too. There is one bottleneck here, not a privileged path.` +
     `</p>` +
     `</div>` +
     `<div class="col-analyst">` +
@@ -169,7 +172,33 @@ export function renderAsk(state: LabState): string {
     `a coordinate of x.` +
     `</p>` +
     details(
-      'Under the hood — the key itself',
+      'Verify this — the n basis keys the authority used',
+      `<p>` +
+      `One functional key per basis vector, each with its own scalar and its own bounded ` +
+      `search. This is the mechanism the column above claims, shown rather than asserted: the ` +
+      `headline vector is assembled from exactly these rows, and a page that read the input ` +
+      `field instead would disagree with them.` +
+      `</p>` +
+      `<div class="table-scroll" tabindex="0" role="region" ` +
+      `aria-label="The basis keys used to read every coordinate">` +
+      `<table><caption>Each row is a real KeyDer and a real Decrypt.</caption>` +
+      `<thead><tr><th scope="col" class="num">i</th><th scope="col" class="num">e<sub>i</sub></th>` +
+      `<th scope="col">sk for e<sub>i</sub></th><th scope="col" class="num">x<sub>i</sub> recovered</th>` +
+      `<th scope="col" class="num">ops</th></tr></thead><tbody>` +
+      coords
+        .map((c, i) => {
+          const e = Array.from({ length: msk.n }, (_, j) => (j === i ? 1n : 0n));
+          const val = c.dlog.found ? String(c.dlog.value) : 'no value';
+          return (
+            `<tr><th scope="row" class="num">${i + 1}</th>` +
+            `<td class="num">${vec(e)}</td>` +
+            `<td><span class="group-el">${keyDer(msk, e).sk}</span></td>` +
+            `<td class="num" data-field="coord-${i}">${val}</td>` +
+            `<td class="num">${c.dlog.ops.total}</td></tr>`
+          );
+        })
+        .join('') +
+      `</tbody></table></div>` +
       kv([
         ['sk<sub>y</sub> = &lt;s, y&gt; mod &#8467;', `<span class="group-el" data-field="sk">${key.sk}</span>`],
         ['mpk h<sub>1</sub> = g<sup>s<sub>1</sub></sup>', `<span class="group-el">${toHex(state.keys.mpk.h[0])}</span>`],
