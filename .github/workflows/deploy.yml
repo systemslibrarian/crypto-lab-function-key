@@ -1,0 +1,108 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request: # the gate must judge PRs too -- see section 6.1
+    branches: [main]
+  workflow_dispatch: # so a deploy can be re-run by hand -- see section 6.2
+
+concurrency:
+  # NOT a bare `pages`: with cancel-in-progress a PR run would cancel a live
+  # main deploy.
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # The measured local run is well under two minutes; 15 is generous and
+    # still far below GitHub's 360-minute default, which is where a hung job
+    # burning six hours with nothing red comes from.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # THE WHOLE SUITE GATES THE DEPLOY, not just the a11y half. A repo that
+      # runs only `test:a11y` lets a build whose cryptography is broken publish
+      # so long as the browser specs pass.
+      - name: Unit tests and KATs (RFC 9496 vectors, ABDP15 correctness)
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Accessibility gate (axe-core, WCAG A/AA)
+        run: npm run test:a11y
+
+      - name: Claims suite (does the page tell the truth)
+        run: npm run test:claims
+
+      - name: Functional flows
+        run: npm run test:e2e
+
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    # NOT `== 'push'`. That also skips workflow_dispatch, which is the one
+    # trigger section 6.2 depends on: the dispatched run would build, pass the
+    # gate, and skip the deploy job, so the site would still never update.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+
+  dependabot-auto-merge:
+    needs: build # every gate job -- this is what makes it safe
+    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: write, pull-requests: write, actions: write }
+    # actions: write is required for the deploy dispatch below. Without it
+    # `gh workflow run` returns HTTP 403 "Resource not accessible by integration",
+    # the merged bump never deploys, and a `|| echo` fallback hides it.
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v2
+      - name: Merge any bump whose gate went green
+        run: |
+          for attempt in 1 2 3; do
+            gh pr merge --squash --delete-branch "$PR_URL" && merged=1 && break
+            sleep 15          # a sibling PR merging first moves main under us
+          done
+          [ -n "$merged" ] || { echo "::warning::gate passed, merge did not land"; exit 0; }
+          # A merge made with GITHUB_TOKEN raises no push event -- GitHub suppresses
+          # them so workflows cannot retrigger themselves -- so deploy would never run
+          # and the site would keep serving the previous build. Ask for it explicitly;
+          # a workflow_dispatch through the API is not suppressed. The dispatched run
+          # is the same gate-then-deploy pipeline, so a bad merge still ships nothing.
+          #
+          # Dispatch the file THIS lab has: most are deploy.yml, some deploy-pages.yml
+          # or pages.yml. A copied name 404s only on the auto-merge path, after the
+          # merge has landed. See section 6.2.
+          gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref main
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

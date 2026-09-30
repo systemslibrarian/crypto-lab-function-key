@@ -1,0 +1,822 @@
+/*
+ * Function Key — theme and layout.
+ *
+ * ON --accent, AND WHY IT IS NOT DEFINED HERE.
+ *
+ * The catalog assigns each lab its accent centrally, from a four-colour
+ * rotation, judged against the 4-, 2- and 1-column card layouts. This repo
+ * therefore does NOT define `--accent` on `:root`. Every consumer below reads
+ * it through `--accent-live`, which supplies the same teal the fleet top bar
+ * falls back to:
+ *
+ *     --accent-live: var(--accent, #35d6bb);
+ *
+ * That is a fallback in a consumer, not a definition of the token. The token
+ * stays undefined, so the moment central assignment adds `--accent: #xxxxxx`
+ * to `:root` the whole page re-tints with no other edit. Writing a literal
+ * accent here is what that would prevent.
+ *
+ * The colour tokens below were verified arithmetically before any of this CSS
+ * was written: every text pairing clears 4.5:1 and every control boundary
+ * clears 3:1 against all four surface levels. `--control-border` is separate
+ * from `--border` precisely because the two have different jobs — a decorative
+ * panel edge is not a control boundary, and WCAG 1.4.11 only governs the
+ * latter.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --bg: #0d1412;
+  --surface: #131c1a;
+  --surface-2: #18231f;
+  --raised: #1d2a26;
+
+  /* Decorative separators. Not a control boundary; 1.4.11 does not apply. */
+  --border: #2f4340;
+  /* The boundary of an actual control. 4.09:1 at its worst surface. */
+  --control-border: #6b8d86;
+
+  --text: #e9f3f0;
+  /* Dimmed by LIGHTNESS, never by opacity -- an opacity-dimmed colour is
+     invisible to a contrast checker and usually fails once composited. */
+  --text-dim: #adc2bc;
+  --text-muted: #94aca6;
+
+  --ok: #5fd39b;
+  --warn: #ffc266;
+  --alarm: #ff8fa0;
+  --info: #7fb8ff;
+
+  /* Dedicated ink for text sitting ON a coloured fill. */
+  --ink-on-fill: #07100e;
+
+  --accent-live: var(--accent, #35d6bb);
+
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+
+/*
+ * BORDER-BOX EVERYWHERE, and this is load-bearing rather than housekeeping.
+ *
+ * Template section 3.1's standard hero CSS gives `.cl-hero-why` a
+ * `padding: .85rem 1.05rem`, a 1px border, and — in the mobile block —
+ * `width: 100%`. Under the default content-box sizing those add together:
+ * measured at a 380px viewport, the box came out 387px wide inside a 351px
+ * column and the whole document scrolled sideways, which is a WCAG 1.4.10
+ * (Reflow) failure the a11y gate catches on the arrival state.
+ *
+ * The template's CSS assumes a border-box reset it does not itself print. That
+ * is a defect in the printed standard rather than a local problem:
+ * `crypto-lab-schnorr-forge`, the lab section 4.1 names as the gate reference,
+ * carries `.cl-hero-why{box-sizing:border-box}` with a comment naming this
+ * exact cause, and other siblings set it globally. Fixed here at the reset so
+ * it cannot recur on the next padded full-width box, and reported upstream
+ * rather than diverged from silently.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* The <html> element gets its own background-color LONGHAND. axe and WebKit
+   both miss the `background` shorthand here. */
+html {
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+#app {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 0 clamp(0.9rem, 3vw, 2rem) 3rem;
+}
+
+#app:focus {
+  outline: none;
+}
+
+/* Base element rules are scoped to #app so they never fight the always-dark
+   .cl-topbar, which styles itself. */
+#app p {
+  margin: 0 0 0.85rem;
+}
+
+#app h2,
+#app h3,
+#app h4 {
+  line-height: 1.25;
+  margin: 0 0 0.5rem;
+}
+
+#app h2 {
+  font-size: clamp(1.15rem, 2.4vw, 1.5rem);
+}
+
+#app h3 {
+  font-size: 1.05rem;
+}
+
+#app h4 {
+  font-size: 0.95rem;
+  color: var(--text-dim);
+}
+
+/* Inline links carry a persistent underline: colour alone is not enough. */
+#app a {
+  color: var(--accent-live);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+#app a:hover {
+  color: var(--text);
+}
+
+#app code,
+#app kbd {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  /* Long unbreakable runs must wrap rather than widen the page. This lab has
+     real ones: the group order is a 76-digit literal and a recovered scalar mod
+     l is the same length, and at 380px one of them scrolled the whole document
+     sideways (WCAG 1.4.10). `anywhere` rather than `break-word` because these
+     are digit strings with no break opportunities at all. */
+  overflow-wrap: anywhere;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-live);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- *
+ * Hero (template section 3.1 standard, colours mapped to our tokens)
+ * ---------------------------------------------------------------- */
+
+.cl-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: clamp(1rem, 4vw, 3rem);
+  flex-wrap: wrap;
+  margin: clamp(1rem, 3vw, 2rem) 0 1.5rem;
+}
+.cl-hero-main {
+  flex: 1 1 22rem;
+  min-width: min(100%, 20rem);
+}
+.cl-hero-title {
+  margin: 0;
+  font-size: clamp(1.6rem, 3.8vw, 2.7rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+}
+.cl-hero-sub {
+  margin: 0.4rem 0 0;
+  font-size: clamp(0.9rem, 1.6vw, 1.05rem);
+  letter-spacing: 0.01em;
+  /* Lightness, not opacity. */
+  color: var(--text-dim);
+  font-family: var(--mono);
+}
+.cl-hero-desc {
+  margin: 0.55rem 0 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  max-width: 60ch;
+}
+.cl-hero-why {
+  flex: 0 1 min(40%, 26rem);
+  min-width: min(100%, 15rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1.05rem;
+  background-color: var(--surface-2);
+}
+.cl-hero-why-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--accent-live);
+}
+.cl-hero-why-text {
+  margin: 0.35rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+/*
+ * The mobile hero block, with one rule the template's printed CSS does not have.
+ *
+ * Template section 3.1 gives `.cl-hero-why` a `flex-basis: auto; width: 100%`
+ * here and gives `.cl-hero-main` nothing, which leaves `flex: 1 1 22rem` in
+ * force. In the column layout that 22rem becomes a MAIN-AXIS (height) basis,
+ * and the cross size falls back to content-based sizing: measured at a 380px
+ * viewport, `.cl-hero-main` came out 386.8px wide inside a 351.2px container
+ * and the whole document scrolled horizontally — a WCAG 1.4.10 (Reflow)
+ * failure that the a11y gate catches on the arrival state.
+ *
+ * `min-width: 0` drops the 20rem floor and `width: 100%` makes the cross size
+ * definite instead of content-derived, which is the same shape the template
+ * already applies to the sibling box.
+ *
+ * This is not a local invention: siblings across the fleet carry
+ * `.cl-hero-main { flex-basis: auto; min-width: 0 }` in this exact block
+ * already — `bb84`, `accumulator`, `ascon`, `beacon-lock`, `blind-hello`,
+ * `dkg-gate` and others — and `crypto-lab-accumulator` annotates its copy
+ * "Worth upstreaming." So the standard's printed CSS is behind its own fleet
+ * here. Reported rather than silently diverged from.
+ */
+@media (max-width: 640px) {
+  .cl-hero {
+    flex-direction: column;
+  }
+  .cl-hero-main {
+    flex-basis: auto;
+    min-width: 0;
+    width: 100%;
+  }
+  .cl-hero-why {
+    flex-basis: auto;
+    width: 100%;
+  }
+}
+
+/* ---------------------------------------------------------------- *
+ * Cards, panels, tabs
+ * ---------------------------------------------------------------- */
+
+.card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  margin: 0 0 1.1rem;
+}
+
+.card-intro {
+  background-color: var(--surface-2);
+  border-left: 3px solid var(--accent-live);
+}
+
+.lede {
+  font-size: 1.02rem;
+  color: var(--text);
+}
+
+.tabs {
+  margin: 1.4rem 0 1rem;
+}
+
+.tab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tab-btn {
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  color: var(--text);
+  background-color: var(--raised);
+}
+
+/* Selected state is carried by THREE things, not colour alone: the leading
+   marker glyph, the font weight, and the fill. */
+.tab-btn[aria-selected='true'] {
+  background-color: var(--accent-live);
+  border-color: var(--accent-live);
+  color: var(--ink-on-fill);
+  font-weight: 700;
+}
+
+.tab-btn[aria-selected='true']::before {
+  content: '▸ ';
+}
+
+.panel {
+  margin: 0;
+}
+
+.panel:focus {
+  outline: none;
+}
+
+.step-num {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-live);
+  letter-spacing: 0.1em;
+  margin-bottom: 0.25rem;
+}
+
+/* ---------------------------------------------------------------- *
+ * Controls
+ * ---------------------------------------------------------------- */
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1rem;
+  align-items: flex-end;
+  margin: 0 0 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field > label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+#app button {
+  font: inherit;
+}
+
+.btn {
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  background-color: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  background-color: var(--raised);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+.btn-primary {
+  background-color: var(--accent-live);
+  border-color: var(--accent-live);
+  color: var(--ink-on-fill);
+  font-weight: 700;
+}
+
+.btn-primary:hover:not(:disabled) {
+  /* Keep the ink/fill pair; darkening the fill only raises the ratio. */
+  background-color: color-mix(in srgb, var(--accent-live) 82%, #ffffff);
+}
+
+.btn-primary:disabled {
+  background-color: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+input[type='number'],
+input[type='text'],
+select {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  padding: 0.4rem 0.5rem;
+  background-color: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+}
+
+/* A styled select needs appearance:none plus a custom chevron, or the native
+   arrow is drawn by the platform and cannot be contrast-checked. */
+select {
+  appearance: none;
+  padding-right: 2rem;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%),
+    linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+  background-position: calc(100% - 15px) center, calc(100% - 10px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+input[type='range'] {
+  accent-color: var(--accent-live);
+  width: min(100%, 22rem);
+  height: 1.6rem;
+}
+
+.vec-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.vec-inputs input {
+  width: 3.6rem;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- *
+ * Verdicts. Colour ALWAYS travels with an icon glyph and a word.
+ * ---------------------------------------------------------------- */
+
+.verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+}
+
+.verdict-icon {
+  font-style: normal;
+}
+
+.verdict-ok {
+  color: var(--ok);
+}
+.verdict-fail {
+  color: var(--alarm);
+}
+.verdict-warn {
+  color: var(--warn);
+}
+.verdict-info {
+  color: var(--info);
+}
+
+.alarm-box {
+  border: 1px solid var(--alarm);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background-color: var(--surface-2);
+  padding: 0.9rem 1.05rem;
+  margin: 0 0 1rem;
+}
+
+.alarm-box h3 {
+  color: var(--alarm);
+}
+
+.note-box {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--info);
+  border-radius: var(--radius);
+  background-color: var(--surface-2);
+  padding: 0.85rem 1rem;
+  margin: 0 0 1rem;
+}
+
+/* ---------------------------------------------------------------- *
+ * Group elements vs recovered integers — visually distinct by rule
+ * ---------------------------------------------------------------- */
+
+/* An opaque group element: monospace, dim, boxed, wrapped. It must never look
+   like an answer. */
+.group-el {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  background-color: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  overflow-wrap: anywhere;
+}
+
+/* The recovered integer: large, bright, no box. The contrast with .group-el is
+   the lesson, so these two styles must not converge. */
+.recovered-int {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-weight: 700;
+  color: var(--ok);
+  letter-spacing: 0.02em;
+}
+
+.pending-int {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: clamp(1.1rem, 3vw, 1.4rem);
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.arrow-down {
+  color: var(--text-muted);
+  font-size: 1.3rem;
+  line-height: 1;
+  margin: 0.3rem 0;
+}
+
+/* Secondary explanatory text. Dimmed by lightness, and still 6.17:1 at its
+   worst surface, so it is ordinary readable prose rather than fine print. */
+.footnote {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0.35rem 0 0.6rem;
+}
+
+.footnote code {
+  color: var(--text-dim);
+}
+
+/* The chart's caption is shown, not hidden: it is the sentence that says what
+   the picture means, and hiding it from sighted readers to satisfy a screen
+   reader would be the wrong trade. The class name records that choice. */
+.visually-shown {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+/* ---------------------------------------------------------------- *
+ * Tables
+ * ---------------------------------------------------------------- */
+
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.86rem;
+}
+
+caption {
+  text-align: left;
+  padding: 0.6rem 0.7rem;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th {
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background-color: var(--surface-2);
+  white-space: nowrap;
+}
+
+td.num,
+th.num {
+  font-family: var(--mono);
+  text-align: right;
+  white-space: nowrap;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tr[data-row-state='fail'] {
+  background-color: color-mix(in srgb, var(--alarm) 10%, transparent);
+}
+
+/* ---------------------------------------------------------------- *
+ * Chart
+ * ---------------------------------------------------------------- */
+
+.chart-wrap {
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.8rem;
+  margin: 0 0 0.9rem;
+}
+
+.chart-wrap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin: 0.55rem 0 0;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  list-style: none;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.swatch {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 3px;
+  border: 1px solid var(--control-border);
+  flex: 0 0 auto;
+}
+
+/* ---------------------------------------------------------------- *
+ * Knowledge state / key list
+ * ---------------------------------------------------------------- */
+
+.kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 0.9rem;
+  margin: 0 0 0.9rem;
+  font-size: 0.9rem;
+}
+
+.kv dt {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.kv dd {
+  margin: 0;
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.key-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.key-list li {
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.dim-meter {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0.4rem 0 0.8rem;
+}
+
+.dim-cell {
+  width: 1.6rem;
+  height: 0.6rem;
+  border-radius: 3px;
+  border: 1px solid var(--control-border);
+  flex: 0 0 auto;
+}
+
+.dim-cell[data-filled='yes'] {
+  background-color: var(--accent-live);
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.9rem;
+}
+
+.compare-grid > div {
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+}
+
+.tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 5px;
+  border: 1px solid var(--control-border);
+  color: var(--text-dim);
+  margin: 0 0 0.4rem;
+}
+
+.honesty-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.9rem;
+}
+
+.honesty-cols ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+
+.honesty-cols li {
+  margin-bottom: 0.3rem;
+}
+
+/* ---------------------------------------------------------------- *
+ * Footer
+ * ---------------------------------------------------------------- */
+
+.scripture-footer {
+  margin-top: 2.5rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+
+.scripture-footer p {
+  margin: 0 0 0.5rem;
+}
+
+.footer-links a {
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- *
+ * Motion. There is no decorative motion in this lab; the only transitions
+ * are on hover/focus of controls. This block still exercises the real
+ * preference rather than relying on a test to inject a stylesheet.
+ * ---------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .kv {
+    grid-template-columns: 1fr;
+    gap: 0.1rem 0;
+  }
+  .kv dd {
+    margin-bottom: 0.5rem;
+  }
+}
