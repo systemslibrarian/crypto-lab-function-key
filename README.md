@@ -250,7 +250,7 @@ pinned to an A.1 encoding or reached by negation.
 | Suite | Tests | Covers |
 |---|---|---|
 | `npm test` (Vitest) | **176** | RFC 9496 A.1/A.2/A.3 KATs, ABDP15 correctness, BSGS boundaries and cost law, exact rational and mod-ℓ algebra, reconstruction, master-secret recovery, rank refusal |
-| `e2e/claims.spec.ts` | **22** | invariants 1–9 rendered on the page, by independent re-derivation; §4.1d negative claim; `[hidden]` probe; retirement and no-op guards; cross-checks between surfaces |
+| `e2e/claims.spec.ts` | **23** | invariants 1–9 rendered on the page, by independent re-derivation; the mod-ℓ scalar edge case; §4.1d negative claim; `[hidden]` probe; retirement and no-op guards; cross-checks between surfaces |
 | `e2e/a11y.spec.ts` | **2** | the axe WCAG 2.1 A/AA gate across ~30 driven states, at desktop and 380px |
 | `e2e/flows.spec.ts` | **14 × 2** | one functional scenario per exhibit, at desktop and on a mobile viewport |
 
@@ -277,7 +277,9 @@ already carry the first fix, and `crypto-lab-schnorr-forge` (the gate reference 
 carries the second.
 
 **Mutation-tested (§4.1c).** Each rendered verdict has a source mutation that turns it red with the
-build still succeeding and the bundle hash moving. See `MUTATIONS.md` for the log.
+build still succeeding and the bundle hash moving — 12 mutations, 12 bite, including one against the
+a11y gate's own WCAG 1.4.11 oracle. See [`MUTATIONS.md`](MUTATIONS.md) for the log and for the two
+that had to be redesigned because the first attempt proved nothing.
 
 ### On `--accent`, the favicon, and the catalog category
 
