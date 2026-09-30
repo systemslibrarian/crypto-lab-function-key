@@ -3,14 +3,11 @@
 Paste-ready. **Nothing in `systemslibrarian/crypto-lab` was edited** — this file hands the data
 back instead, per the build instructions.
 
-Pinned at commit **`9b256abb0b1270fb4bd1a5cabd573258cf5bd4b7`**.
+Pinned at commit **`24c7682a1be75579229210b4b445a0e1ae1f507a`**.
 
-That is the last commit containing lab code, tests or configuration, and it is the state that was
-deployed and verified live (the served bundle was confirmed byte-identical to a local build of it).
-Commits after it on `main` add only this file and notes about it, so the review sha deliberately
-does not chase its own documentation — pinning to the tip would move every time this file is
-edited. `9b256ab` is reachable on `main`; verify with `git log 9b256ab..main --oneline` that
-nothing but documentation follows it.
+That is the current tip of `origin/main`, deployed and verified live: every emitted asset was
+confirmed byte-identical to a local build of it, and the claims and flows suites were re-run
+against the live deployment.
 
 **Three fields are deliberately left for central assignment and are NOT proposed here:**
 `--accent`, the favicon emoji, and the final `data-category`. The neighbour data needed to decide
@@ -29,7 +26,7 @@ Kicker / title / copy / chips, in the shape `index.html` uses:
   data-attacks="Key collusion / linear reconstruction@src/crypto/attacks.ts:232 | Ciphertext malleability@src/crypto/ipfe.ts:221"
   data-standards="IETF"
   data-implementation="@noble"
-  data-review-commit="9b256abb0b1270fb4bd1a5cabd573258cf5bd4b7"
+  data-review-commit="24c7682a1be75579229210b4b445a0e1ae1f507a"
   data-review-note="Browser TypeScript throughout; @noble/curves pinned to RFC 9496 Appendix A (A.1/A.2/A.3) before any scheme code, ABDP15 Construction 3.1 implemented in-repo"
   target="_blank" rel="noopener" style="--accent: /* ASSIGNED CENTRALLY */;">
   <div class="card-kicker">Functional Encryption</div>
@@ -55,7 +52,7 @@ Kicker / title / copy / chips, in the shape `index.html` uses:
 | Kicker | `Functional Encryption` |
 | Description | Issue a key that answers one question about an encrypted vector — its weighted sum — and nothing else. Watch decryption finish without producing a number, then issue keys one at a time and watch the set of possible plaintexts shrink, until you are the authority deciding whether to sign the one that hands over the master secret. |
 | Chips | `ABDP15 IPFE` · `ristretto255` · `Baby-Step Giant-Step` · `Key Collusion` |
-| About one-liner (GitHub) | Inner-product functional encryption over ristretto255: a key that releases only ⟨x, y⟩, the discrete-log bound that limits it, and what enough keys add up to. |
+| GitHub About | Browser-based inner-product functional encryption demo — ABDP15 (PKC 2015) over ristretto255. A key releasing only ⟨x, y⟩ beside one releasing the whole vector, the baby-step giant-step bottleneck measured in group operations, exact reconstruction from enough keys. Issue one key too many and you hand over the master secret. |
 
 **Two vocabulary notes for `tools/catalog-vocab.js`:** `ristretto255` and `SHA-512` are already in
 `ALGORITHMS`. **`ABDP15 IPFE` and `Baby-step giant-step` are not** — `catalog-vocab` was checked and
@@ -82,7 +79,7 @@ choice and the reasoning is the deliverable.
 
 ```json
   "crypto-lab-function-key": {
-    "commit": "9b256abb0b1270fb4bd1a5cabd573258cf5bd4b7",
+    "commit": "24c7682a1be75579229210b4b445a0e1ae1f507a",
     "reviewed": "2026-09-30",
     "add": [
       "ristretto255@src/crypto/ristretto.ts:43",
