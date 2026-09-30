@@ -132,6 +132,31 @@ test('Invariant 1: the recovered integer is what the big display shows, not a di
   );
 });
 
+test('edge case 5: the functional key is a canonical scalar mod l, never a raw integer', async ({
+  page,
+}) => {
+  // Entries of x and y are signed integers; sk_y is a scalar mod l. The page
+  // asserts the reduction rather than assuming it, and the test re-checks the
+  // range here from the printed value.
+  const L = 2n ** 252n + 27742317777372353535851937790883648493n;
+
+  for (const [i, v] of ['-9', '-9', '-9', '-9'].entries()) {
+    await setVec(page, 'y', i, v);
+  }
+  // A y that is all negative makes the raw <s, y> negative before reduction,
+  // which is exactly the case a truncating mod would get wrong.
+  const sk = BigInt(await fieldText(page, '#panel-keys', 'sk'));
+  expect(sk, 'sk_y must not be negative').toBeGreaterThanOrEqual(0n);
+  expect(sk, 'sk_y must be below the group order').toBeLessThan(L);
+  expect(await verdictTone(page, 'scalar-canonical')).toBe('ok');
+  expect(await verdictText(page, 'scalar-canonical')).toContain('CANONICAL SCALAR');
+
+  // And the answer is still right, so the reduction did not cost correctness.
+  expect(BigInt(await fieldText(page, '#panel-keys', 'computed'))).toBe(
+    dotProduct(await readVector(page, 'x'), await readVector(page, 'y')),
+  );
+});
+
 /* ------------------------------------------------------------------ *
  * Invariant 2 — randomized encryption
  * ------------------------------------------------------------------ */

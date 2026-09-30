@@ -228,9 +228,25 @@ export function renderKeys(state: LabState): string {
     `the point of exhibit 5.` +
     `</p>` +
     kv([
-      ['sk<sub>y</sub> (this key, mod &#8467;)', `<span class="group-el">${key.sk}</span>`],
+      ['sk<sub>y</sub> (this key, mod &#8467;)', `<span class="group-el" data-field="sk">${key.sk}</span>`],
       ['mpk h<sub>1</sub> = g<sup>s<sub>1</sub></sup>', `<span class="group-el">${toHex(mpk.h[0])}</span>`],
     ]) +
+    `<p>` +
+    verdictFor(
+      'scalar-canonical',
+      key.sk >= 0n && key.sk < GROUP_ORDER,
+      'THE KEY IS A CANONICAL SCALAR IN [0, &#8467;)',
+      'THE KEY IS NOT REDUCED MOD &#8467;',
+    ) +
+    `</p>` +
+    `<p class="footnote">` +
+    `That check is not decoration. Entries of x and y are <strong>integers</strong> and can be ` +
+    `negative; keys are <strong>scalars mod &#8467;</strong>. They are different kinds of thing, ` +
+    `and the raw inner product &lt;s, y&gt; is a signed integer that may be negative or larger ` +
+    `than &#8467; before it is reduced. The lab never mixes the two silently, so the reduction is ` +
+    `asserted here rather than assumed &mdash; 0 &le; sk<sub>y</sub> &lt; &#8467; = ` +
+    `<code>${GROUP_ORDER}</code>.` +
+    `</p>` +
     `</div>`
   );
 }
