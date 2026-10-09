@@ -287,6 +287,46 @@ test('Invariant 3: below the answer, the search refuses and prints no integer', 
   expect(BigInt(await fieldText(page, '#panel-decode', 'recovered'))).toBe(expected);
 });
 
+test('background cost measurement preserves a reader-opened disclosure and keyboard focus', async ({ page }) => {
+  // Hold only the REAL cost reply until the reader opens the disclosure.
+  // No cryptographic result, worker response or table data is invented.
+  await page.addInitScript(() => {
+    const native = Worker.prototype.addEventListener;
+    Object.defineProperty(Worker.prototype, 'addEventListener', { value: function (
+      this: Worker, type: string, listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) {
+      if (type !== 'message' || typeof listener !== 'function') {
+        return native.call(this, type, listener, options);
+      }
+      const held = (event: MessageEvent) => {
+        if (event.data?.kind === 'cost') {
+          Object.defineProperty(window, '__releaseFleetCost', {
+            configurable: true,
+            value: () => listener.call(this, event),
+          });
+        } else {
+          listener.call(this, event);
+        }
+      };
+      return native.call(this, type, held as EventListener, options);
+    } });
+  });
+  await page.goto('.');
+  await page.waitForFunction(() => typeof (window as unknown as { __releaseFleetCost?: () => void }).__releaseFleetCost === 'function');
+  await openStage(page, /Decode the bounded/, '#panel-decode');
+  const summary = page.locator('#panel-decode details.disclose > summary').filter({ hasText: 'the edge of the range, in both directions' });
+  await summary.focus();
+  await summary.press('Enter');
+  const table = page.locator('[aria-label="Boundary behaviour of the bounded search"] table');
+  await expect(table).toBeVisible();
+  await page.evaluate(() => (window as unknown as { __releaseFleetCost: () => void }).__releaseFleetCost());
+  await expect(page.locator('#panel-decode [data-verdict="cost-law"]')).toHaveAttribute('data-tone', 'ok');
+  await expect(table).toBeVisible();
+  await expect(summary).toBeFocused();
+  await expect(table.locator('tbody tr').nth(2).locator('td').nth(1)).toHaveText('-25');
+});
+
 test('Invariant 3: the boundary table is right at +/-B and +/-(B+1), both directions', async ({
   page,
 }) => {
