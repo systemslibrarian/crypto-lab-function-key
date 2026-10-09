@@ -78,7 +78,24 @@ function paintScenario(): void {
 
 function paintStage(): void {
   const host = document.getElementById(`panel-${active}`);
-  if (host) host.innerHTML = renderStage(active);
+  if (host) {
+    // Worker replies redraw the active panel while a reader may be using it.
+    // Retain the reader's open/closed disclosures and focused summary across
+    // that redraw, using each existing summary's stable text as its identity.
+    const name = (detail: HTMLDetailsElement): string =>
+      detail.querySelector(':scope > summary')?.textContent?.trim() ?? '';
+    const before = [...host.querySelectorAll<HTMLDetailsElement>('details.disclose')];
+    const states = new Map(before.map((detail) => [name(detail), detail.open]));
+    const focused = before.find((detail) =>
+      detail.querySelector(':scope > summary') === document.activeElement);
+    const focusedName = focused ? name(focused) : null;
+    host.innerHTML = renderStage(active);
+    for (const detail of host.querySelectorAll<HTMLDetailsElement>('details.disclose')) {
+      const key = name(detail);
+      if (states.has(key)) detail.open = states.get(key)!;
+      if (key === focusedName) detail.querySelector<HTMLElement>(':scope > summary')?.focus();
+    }
+  }
   paintStageNav();
 }
 
