@@ -39,6 +39,7 @@ import {
 } from '../crypto/attacks';
 import {
   CORRECTNESS_FIXTURES,
+  COST_LAW_BOUNDS,
   DEFAULT_BOUND,
   NEVER_ISSUED_Y,
   PARTIAL_KNOWLEDGE,
@@ -145,7 +146,8 @@ export function renderAsk(state: LabState): string {
     `<div class="col-analyst">` +
     `<span class="tag">ANALYST &middot; holds sk<sub>y</sub></span>` +
     `<h3>Reads one weighted sum</h3>` +
-    `<p>Holds one scalar. It answers for y and for nothing else.</p>` +
+    `<p>Holds one scalar. It releases &lt;x, y&gt; and what that answer implies, ` +
+    `including the answers for scalar multiples of y.</p>` +
     `<p>` +
     (got === null
       ? `<span class="pending-int">no value &mdash; outside the bound</span>`
@@ -278,10 +280,13 @@ export function renderDecode(state: LabState, degraded: boolean): string {
         `The r terms cancel; the inner product survives, in the exponent.` +
         `</p>` +
         `<span class="group-el group-el-hero" data-field="element">${toHex(element)}</span>` +
-        `<p>${verdict('decrypt-applied', 'ok', 'DECRYPTION IS COMPLETE')}</p>` +
+        `<p>${verdict('decrypt-applied', 'ok', showResult && res?.found
+          ? 'GROUP ELEMENT COMPUTED — SEE THE SEARCH RESULT BELOW'
+          : 'GROUP ELEMENT COMPUTED — INTEGER RECOVERY REMAINS')}</p>` +
         `<p class="footnote">` +
-        `That is the whole output of the scheme. There is no further arithmetic to do on the ` +
-        `ciphertext &mdash; and no number on screen.` +
+        `The group arithmetic has finished. ABDP15 decryption also requires the discrete log ` +
+        `in Step 2. The answer in the scenario bar comes ` +
+        `from the plaintext you entered, not from this search.` +
         `</p>`;
 
   const stepThree =
@@ -298,7 +303,7 @@ export function renderDecode(state: LabState, degraded: boolean): string {
           `<button class="btn btn-primary" id="btn-recover" type="button">` +
           `Recover the integer</button>` +
           `<p class="staged-empty" data-field="no-integer-yet">` +
-          verdict('search-staged', 'info', 'NO INTEGER EXISTS ANYWHERE ON THIS PAGE YET') +
+          verdict('search-staged', 'info', 'NO INTEGER RECOVERED BY THIS SEARCH YET') +
           `</p>` +
           `</div>`
         : phase === 'searching'
@@ -314,6 +319,13 @@ export function renderDecode(state: LabState, degraded: boolean): string {
             (degraded ? ' on the main thread (no worker available).' : ' in a worker.') +
             `</p>` +
             `</div>`
+          : phase === 'failed'
+            ? `<div class="staged-step"><h3>Step 2 &mdash; search unavailable</h3>` +
+              `<p role="status" aria-live="polite">` +
+              verdict('search-staged', 'fail', 'SEARCH FAILED — NO RESULT RETURNED') +
+              `</p><p>The worker stopped before returning a result. This does not show ` +
+              `that the answer is outside the range.</p>` +
+              `<button class="btn" id="btn-redo-search" type="button">Retry the search</button></div>`
           : `<div class="staged-step">` +
             `<p class="arrow-down" aria-hidden="true">&darr;</p>` +
             `<h3>Step 2 &mdash; the exponent</h3>` +
@@ -330,7 +342,7 @@ export function renderDecode(state: LabState, degraded: boolean): string {
                 `<p class="footnote">` +
                 `recovered: <code data-field="computed">${res.value}</code> &middot; ` +
                 `expected: <code data-field="expected">${expected}</code> &middot; ` +
-                `<code data-field="search-ops">${res.ops.total}</code> group operations &middot; ` +
+                `<code data-field="search-ops">${res.ops.total}</code> high-level group calls &middot; ` +
                 `<code>${res.elapsedMs.toFixed(0)} ms</code> (machine-dependent)` +
                 `</p>`
               : `<p><span class="pending-int">no value &mdash; not found in range</span></p>` +
@@ -343,7 +355,7 @@ export function renderDecode(state: LabState, degraded: boolean): string {
                 `[&minus;${state.bound}, ${state.bound}]. Widen B in the bar above.` +
                 `</p>` +
                 `<p class="footnote">` +
-                `<code data-field="search-ops">${res?.ops.total ?? 0}</code> group operations ` +
+                `<code data-field="search-ops">${res?.ops.total ?? 0}</code> high-level group calls ` +
                 `spent proving there is nothing there.` +
                 `</p>`) +
             `<button class="btn" id="btn-redo-search" type="button">Run it again</button>` +
@@ -352,11 +364,11 @@ export function renderDecode(state: LabState, degraded: boolean): string {
   return (
     `<div class="stage-head">` +
     `<span class="step-num">STAGE 2 OF 4</span>` +
-    `<h2>Decryption finishes before the answer arrives</h2>` +
+    `<h2>Decryption has a group step and an integer search</h2>` +
     `<p class="lede">` +
-    `This is the part that surprises people, so it is split into two presses rather than ` +
-    `described. Applying the key succeeds immediately. The integer is a separate search, and ` +
-    `until you run it there is no integer anywhere on this page.` +
+    `The first press computes the group element. The second completes decryption by searching ` +
+    `for its exponent. Before that search, the scenario bar shows the expected answer from ` +
+    `your input, but this panel has not recovered it from the ciphertext.` +
     `</p>` +
     `</div>` +
     `<div class="card staged">` +
@@ -377,9 +389,10 @@ export function renderDecode(state: LabState, degraded: boolean): string {
     details(
       'Verify this — the ciphertext under a fresh r',
       `<p>` +
-      `A fresh r changes every component of the ciphertext. It does not change the element ` +
-      `above, because the r terms cancel &mdash; the randomness hides the ciphertext, and was ` +
-      `never meant to hide the answer.` +
+      `For the same x and y, resampling r normally changes the ciphertext while leaving the ` +
+      `decrypted element unchanged: the r terms cancel. A repeated r, or a zero setup scalar ` +
+      `s<sub>i</sub>, can leave components unchanged, so the table reports what this pair ` +
+      `actually did. Editing x instead changes the message as well.` +
       `</p>` +
       `<div class="table-scroll" tabindex="0" role="region" ` +
       `aria-label="Ciphertext components, compared against the previous encryption">` +
@@ -406,6 +419,22 @@ export function renderDecode(state: LabState, degraded: boolean): string {
 }
 
 function renderCost(state: LabState): string {
+  const complete = state.cost !== null && state.cost.length === COST_LAW_BOUNDS.length &&
+    COST_LAW_BOUNDS.every((bound) => state.cost!.filter((p) =>
+      p.bound === String(bound) && p.width === String(2n * bound + 1n) &&
+      Number.isSafeInteger(p.measuredOps) && p.measuredOps > 0 &&
+      Number.isSafeInteger(p.predictedOps) && p.predictedOps > 0 &&
+      Number.isSafeInteger(p.tableSize) && p.tableSize > 0 &&
+      Number.isFinite(p.elapsedMs) && p.elapsedMs >= 0).length === 1);
+  if (state.costFailed || (state.cost !== null && !complete)) {
+    return `<div class="card"><h3>What the search costs</h3>` +
+      `<p role="status" aria-live="polite" data-field="cost-status">` +
+      verdict('cost-law', 'fail', 'COST EVIDENCE UNAVAILABLE — NO SCALING VERDICT') +
+      `</p><p>The sweep did not return one complete measurement for each of its ` +
+      `${COST_LAW_BOUNDS.length} widths. A failed or incomplete run cannot establish ` +
+      `the cost law.</p><button class="btn" id="btn-retry-cost" type="button">` +
+      `Retry cost measurements</button></div>`;
+  }
   if (state.costPending || state.cost === null) {
     return (
       `<div class="card">` +
@@ -442,13 +471,14 @@ function renderCost(state: LabState): string {
     `<h3>What the search costs</h3>` +
     `<p>` +
     `Baby-step giant-step trades memory for time and turns a search of width W into about ` +
-    `2&#8730;W operations. That is the only reason a bound in the millions is reachable in a ` +
+    `2&#8730;W loop additions. The chart counts baby-step and giant-step additions, ` +
+    `excluding setup, point encodings, lookups and field arithmetic. That is why a bound in the millions is reachable in a ` +
     `browser &mdash; and it is still a search, which is the limit ABDP15 is honest about.` +
     `</p>` +
     costChart(
       points,
       state.bound,
-      'Group operations charged by completed searches, against search width, on logarithmic ' +
+      'Loop additions charged by completed searches, against search width, on logarithmic ' +
         'axes, with the reference curve two times the square root of W and a marker for the ' +
         'bound currently selected.',
     ) +
@@ -493,9 +523,9 @@ function renderBoundary(): string {
   const negOverBound = decrypt(ctNeg, key, 24n);
 
   const rows: readonly [string, boolean, string, string][] = [
-    ['+25 with B = 25 (inside)', atBound.dlog.found, atBound.dlog.found ? String(atBound.dlog.value) : 'no value', '25'],
+    ['+25 with B = 25 (inside)', atBound.dlog.found && atBound.dlog.value === 25n, atBound.dlog.found ? String(atBound.dlog.value) : 'no value', '25'],
     ['+25 with B = 24 (outside)', !overBound.dlog.found, overBound.dlog.found ? String(overBound.dlog.value) : 'no value', 'no value'],
-    ['&minus;25 with B = 25 (inside)', negAtBound.dlog.found, negAtBound.dlog.found ? String(negAtBound.dlog.value) : 'no value', '-25'],
+    ['&minus;25 with B = 25 (inside)', negAtBound.dlog.found && negAtBound.dlog.value === -25n, negAtBound.dlog.found ? String(negAtBound.dlog.value) : 'no value', '-25'],
     ['&minus;25 with B = 24 (outside)', !negOverBound.dlog.found, negOverBound.dlog.found ? String(negOverBound.dlog.value) : 'no value', 'no value'],
   ];
   const allCorrect = rows.every(([, ok]) => ok);
@@ -666,6 +696,8 @@ export function renderAccumulate(state: LabState): string {
     `<p class="lede">` +
     `A fixed 4-component vector is encrypted once. Request keys in any order and watch the ` +
     `matrix of issued questions grow &mdash; and watch what is still unknown shrink with it.` +
+    ` Rank describes these equations over the rationals. Known bounds or other information ` +
+    `about a plaintext can narrow its possibilities further, even before full rank.` +
     `</p>` +
     `<p class="scenario-note">` +
     verdict('stage3-seeded', 'info', 'SEEDED SCENARIO — SEPARATE FROM THE BAR ABOVE') +
@@ -861,8 +893,10 @@ export function renderCross(state: LabState): string {
     `</div>` +
     `<div class="card">` +
     `<div class="controls">` +
-    `<button class="btn" type="button" id="btn-reset-alone">Revoke all keys</button>` +
+    `<button class="btn" type="button" id="btn-reset-alone">Reset issuance scenario</button>` +
     `</div>` +
+    `<p class="footnote">Reset clears this exercise. It cannot revoke copies of issued keys ` +
+    `or a master secret already recovered by a key holder.</p>` +
     `<h3>Requests on your desk</h3>` +
     `<ul class="key-list" role="list" aria-label="Key requests awaiting a decision">${offers}</ul>` +
     renderMatrix(rows, {
@@ -1054,7 +1088,7 @@ function renderHonesty(state: LabState): string {
     `<div><h4>Real</h4><ul>` +
     `<li>ristretto255 via <code>@noble/curves</code>, pinned to RFC 9496 Appendix A</li>` +
     `<li>ABDP15 Construction 3.1, implemented here</li>` +
-    `<li>Baby-step giant-step with an exact operation counter</li>` +
+    `<li>Baby-step giant-step with counters for high-level group calls</li>` +
     `<li>Reconstruction and master-secret recovery in exact arithmetic</li>` +
     `</ul></div>` +
     `<div><h4>Modeled</h4><ul>` +

@@ -16,15 +16,15 @@ Inner Products* (PKC 2015; [ePrint 2015/017](https://eprint.iacr.org/2015/017)),
 Functional encryption adds a middle setting between "you hold the key and see everything" and
 "you don't and see nothing": the authority can issue a key that answers exactly one question
 about the encrypted data. Here that question is a weighted sum. Encrypt a vector `x`; a key for
-the weight vector `y` returns the single integer `<x, y>` and nothing else about `x`.
+the weight vector `y` returns `<x, y>` and the information that answer logically implies, including its scalar multiples.
 
 The primitives, all real and all implemented in this repo:
 
 - **Setup / KeyDer / Encrypt / Decrypt** — ABDP15 Construction 3.1 verbatim in structure.
   `s ← Z_ℓⁿ`; `mpk = (h_i = g^{s_i})`; `sk_y = <s, y> mod ℓ`; `ct₀ = g^r`, `ct_i = h_i^r · g^{x_i}`;
   decryption is `∏ ct_i^{y_i} / ct₀^{sk_y} = g^{<x,y>}` followed by a discrete log.
-- **Baby-step giant-step** over a *symmetric* range `[−B, B]`, with an exact group-operation
-  counter. This is what makes the scheme's honest limitation measurable rather than described.
+- **Baby-step giant-step** over a *symmetric* range `[−B, B]`, with counters for high-level group calls
+  (two scalar multiplications, one addition and one negation for setup, then loop additions). This is what makes the scheme's honest limitation measurable rather than described.
 - **Exact linear algebra** — BigInt rationals over ℚ for reconstructing `x`, and elimination
   mod ℓ for recovering the master secret. No floating point anywhere.
 
@@ -58,8 +58,9 @@ about, and no stage depends on a control hidden in another one.
    gets one weighted sum. Both columns are executed. The point is the symmetry: *"the authority can
    read everything"* and *"n independent keys read everything"* are the same mechanism run by
    different people.
-2. **Decode the bounded answer** — two presses, not one. *Apply functional key* completes the
-   decryption and yields `g^{<x,y>}`; at that moment there is **no integer anywhere on the page**.
+2. **Decode the bounded answer** — two presses, not one. *Apply functional key* computes the
+   group element `g^{<x,y>}`. **The bounded discrete log remains part of decryption**; the
+   scenario bar separately displays the expected answer computed from the entered plaintext.
    *Recover the integer* starts a baby-step giant-step search in a Web Worker and reports what it
    found, or that it found nothing, with the operation count that got there. The cost chart plots
    searches that actually ran, with a marker for the bound the slider is on.
@@ -103,10 +104,11 @@ comparison, the honesty panel, the negative claim with its exhibit, and the prim
 **<https://systemslibrarian.github.io/crypto-lab-function-key/>**
 
 Edit `x` and `y` in the bar at the top and watch the released number track the weighted sum. In
-stage 2, press *Apply functional key* and sit with the fact that decryption has finished and you
-still have no number. Drag the bound below the current answer and watch the search refuse rather
+stage 2, press *Apply functional key* to compute the group element, then recover its exponent to
+complete decryption. Drag the bound below the current answer and watch the search refuse rather
 than return something wrong. Then issue keys one at a time in stages 3 and 4 and watch what "only
-one question" adds up to — and decide, as the authority, whether to issue the one that ends it.
+one question" adds up to — and decide, as the authority, whether to issue the one that ends it. The reset button clears the exercise; it cannot revoke keys already copied
+or erase a master secret already recovered.
 
 ## What Can Go Wrong
 
@@ -114,7 +116,9 @@ one question" adds up to — and decide, as the authority, whether to issue the 
 
 1. **The discrete-log bottleneck.** Decryption yields `g^{<x,y>}`; recovering the integer is a
    discrete log, tractable only because the answer is known to be small. Push the answer outside
-   the bound and the search **reports failure** — it never returns a wrapped value. ALS16 is where
+   the bound and the search **reports failure**. This integer reading relies on the
+   lab's small input caps: group elements encode exponents modulo ℓ and cannot distinguish
+   arbitrary integers separated by ℓ. ALS16 is where
    that restriction goes, by two routes rather than one: its **LWE**-based schemes evaluate inner
    products **modulo a prime `p`**, and its abstract draws the contrast with this construction in
    those words — ABDP15 is "restricted to evaluations of integer inner products of short integer
@@ -166,8 +170,8 @@ not "fix" that row.
 
 ## Real-World Usage
 
-IPFE is the practical corner of functional encryption — general-function FE needs indistinguishability
-obfuscation and is not deployable. Inner products alone cover a lot of what data-sharing requests
+IPFE is a restricted functional-encryption family with comparatively simple constructions.
+General-function FE covers a wider range of security models and assumptions, which this lab does not implement. Inner products alone cover a lot of what data-sharing requests
 actually ask for: weighted averages, subtotals, scores, linear regression coefficients, descriptive
 statistics over records you are not permitted to read. ABDP15 names descriptive statistics as the
 motivating case.
@@ -264,8 +268,8 @@ pinned to an A.1 encoding or reached by negation.
 
 | Suite | Tests | Covers |
 |---|---|---|
-| `npm test` (Vitest) | **183** | RFC 9496 A.1/A.2/A.3 KATs, ABDP15 correctness, BSGS boundaries and cost law, exact rational and mod-ℓ algebra, reconstruction, master-secret recovery, rank refusal, full-vector recovery by basis keys, and candidate generation across **all 15 key subsets and all 24 request orders** |
-| `e2e/claims.spec.ts` | **25** | invariants 1–9 rendered on the page, by independent re-derivation; the staged-decrypt state machine and its stale-answer guard; the measured cost chart vs the closed form; every stage-3 request order; the issuance gate; §4.1d negative claim; `[hidden]` probe; URL/back-forward navigation; retirement and no-op guards |
+| `npm test` (Vitest) | **184** | RFC 9496 A.1/A.2/A.3 KATs, ABDP15 correctness, BSGS boundaries and cost law, exact rational and mod-ℓ algebra, reconstruction, master-secret recovery, rank refusal, full-vector recovery by basis keys, and candidate generation across **all 15 key subsets and all 24 request orders** |
+| `e2e/claims.spec.ts` | **34** | invariants 1–9 rendered on the page, by independent re-derivation; the staged-decrypt state machine and its stale-answer guard; the measured cost chart vs the closed form; every stage-3 request order; the issuance gate; §4.1d negative claim; `[hidden]` probe; URL/back-forward navigation; retirement and no-op guards |
 | `e2e/a11y.spec.ts` | **2** | the axe WCAG 2.1 A/AA gate across ~40 driven states — including every disclosure, opened by clicking its summary — at desktop and 380px |
 | `e2e/flows.spec.ts` | **16 × 2** | one functional scenario per stage, plus a responsiveness budget at the maximum bound and a layout check at 390/768/1440px, at desktop and on a mobile viewport |
 
@@ -351,3 +355,21 @@ controls to re-measure, and the fix is to give them an explicit `--control-borde
 *One of the browser demos in the [Crypto Lab](https://crypto-lab.systemslibrarian.dev/) suite.*
 
 *"So whether you eat or drink or whatever you do, do it all for the glory of God." — 1 Corinthians 10:31*
+
+## Student accuracy review — 2026-11-24
+
+The staged explanation follows ABDP15 Construction 3.1: computing the group element is the
+first part of decryption, and recovering the integer is the remaining discrete-log step.
+The scenario bar computes its expected answer from plaintext entered by the student.
+
+Incomplete, fractional or out-of-range vector entries now retire the old computation and
+remain editable instead of becoming an implicit zero or a silently truncated/clamped integer.
+Cost measurements survive unrelated input edits. Worker failures show unavailable evidence,
+settle outstanding searches and permit an explicitly labeled main-thread retry. The cost law
+requires all eight distinct widths before displaying a verdict; empty or incomplete measurements
+cannot receive an all-matched claim. The chart counts loop additions; per-search totals additionally
+count four high-level setup calls, without claiming to count their internal field arithmetic.
+
+Fresh random draws normally change ciphertext components; equality is still possible if
+randomness repeats or a setup coordinate is zero. The reset in stage 4 clears the exercise
+and makes no claim of cryptographic revocation.

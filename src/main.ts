@@ -30,7 +30,7 @@ import {
   renderEvidence,
 } from './ui/stages';
 import { renderScenario } from './ui/scenario';
-import { clampEntry } from './ui/dom';
+import { parseEntry } from './ui/dom';
 import { ENTRY_MAX, ENTRY_MIN } from './crypto/types';
 import { decryptToElement, keyDer } from './crypto/ipfe';
 import { COST_LAW_BOUNDS } from './crypto/fixtures';
@@ -57,6 +57,11 @@ let active: StageId = 'ask';
  * ------------------------------------------------------------------ */
 
 function renderStage(id: StageId): string {
+  if ((id === 'ask' || id === 'decode') && Object.keys(state.entryDrafts).length > 0) {
+    return `<div class="note-box"><h2>Complete the vector entries</h2>` +
+      `<p role="alert">Enter a whole decimal number from ${ENTRY_MIN} to ${ENTRY_MAX} ` +
+      `in every vector field. The previous result has been cleared.</p></div>`;
+  }
   switch (id) {
     case 'ask':
       return renderAsk(state);
@@ -73,7 +78,8 @@ function renderStage(id: StageId): string {
 
 function paintScenario(): void {
   const host = document.getElementById('scenario-host');
-  if (host) host.innerHTML = renderScenario(state, currentAnswer(state));
+  if (host) host.innerHTML = renderScenario(state,
+    Object.keys(state.entryDrafts).length === 0 ? currentAnswer(state) : null);
 }
 
 function paintStage(): void {
@@ -198,7 +204,16 @@ async function runSearch(): Promise<void> {
 
   const key = keyDer(state.keys.msk, state.y);
   const element = decryptToElement(state.ciphertext, key);
-  const outcome = await searcher.search(element, state.bound);
+  let outcome;
+  try {
+    outcome = await searcher.search(element, state.bound);
+  } catch {
+    if (generation !== state.generation) return;
+    state.decode = 'failed';
+    state.decodeResult = null;
+    repaint();
+    return;
+  }
 
   // Superseded, or the question changed underneath it. Dropping the reply is
   // the whole point of the guard.
@@ -219,9 +234,15 @@ async function runSearch(): Promise<void> {
 async function measureCost(): Promise<void> {
   if (state.cost !== null || state.costPending) return;
   state.costPending = true;
-  const points = await searcher.measureCost(COST_LAW_BOUNDS);
-  state.cost = points;
-  state.costPending = false;
+  state.costFailed = false;
+  try {
+    state.cost = await searcher.measureCost(COST_LAW_BOUNDS);
+  } catch {
+    state.cost = null;
+    state.costFailed = true;
+  } finally {
+    state.costPending = false;
+  }
   if (active === 'decode') repaint();
 }
 
@@ -273,11 +294,11 @@ function wireScenario(): void {
     if (!t) return;
     if (t.id === 'btn-reencrypt') {
       reencrypt(state);
-      searcher.cancelAll();
+      searcher.cancelSearches();
       repaint({ scenario: true });
     } else if (t.id === 'btn-reset') {
       reset(state);
-      searcher.cancelAll();
+      searcher.cancelSearches();
       repaint({ scenario: true });
     }
   });
@@ -289,20 +310,38 @@ function wireScenario(): void {
     if (el.id === 'bound-slider') {
       state.bound = 2n ** BigInt(Number((el as HTMLInputElement).value));
       invalidate(state);
-      searcher.cancelAll();
+      searcher.cancelSearches();
       repaint({ scenario: true });
       return;
     }
     if (el.id === 'n-select') {
       resize(state, Number((el as HTMLSelectElement).value));
-      searcher.cancelAll();
+      searcher.cancelSearches();
       repaint({ scenario: true });
       return;
     }
     const which = (el as HTMLInputElement).dataset.vec;
     if (which === 'x' || which === 'y') {
       const idx = Number((el as HTMLInputElement).dataset.index);
-      const val = clampEntry((el as HTMLInputElement).value, ENTRY_MIN, ENTRY_MAX);
+      const raw = (el as HTMLInputElement).value;
+      const val = parseEntry(raw, ENTRY_MIN, ENTRY_MAX);
+      const draft = `${which}-${idx}`;
+      if (val === null) {
+        state.entryDrafts[draft] = raw;
+        invalidate(state);
+        searcher.cancelSearches();
+        el.setAttribute('aria-invalid', 'true');
+        // Preserve the live field while a minus sign or empty value is being
+        // typed; replacing a number input here destroys that intermediate edit.
+        repaint();
+        const expected = host.querySelector('[data-field="scenario-expected"]');
+        if (expected) expected.textContent = '—';
+        const readout = host.querySelector('#bound-readout');
+        if (readout) readout.textContent =
+          `Enter a whole decimal number from ${ENTRY_MIN} to ${ENTRY_MAX} in every vector field.`;
+        return;
+      }
+      delete state.entryDrafts[draft];
       if (which === 'x') {
         state.x[idx] = val;
         // x changed, so the ciphertext must be rebuilt: it encrypts x.
@@ -311,7 +350,7 @@ function wireScenario(): void {
         state.y[idx] = val;
         invalidate(state);
       }
-      searcher.cancelAll();
+      searcher.cancelSearches();
       repaint({ scenario: true });
     }
   });
@@ -323,6 +362,13 @@ function wireStages(): void {
     const t = (ev.target as HTMLElement | null)?.closest<HTMLElement>('button');
     if (!t || t.hasAttribute('disabled')) return;
 
+    if (t.id === 'btn-retry-cost') {
+      state.cost = null;
+      void measureCost();
+      repaint();
+      return;
+    }
+
     if (t.id === 'btn-apply') {
       state.decode = 'applied';
       repaint();
@@ -333,7 +379,7 @@ function wireStages(): void {
       return;
     }
     if (t.id === 'btn-restart-decode') {
-      searcher.cancelAll();
+      searcher.cancelSearches();
       invalidate(state);
       repaint();
       return;

@@ -24,7 +24,7 @@ import { systemSource } from '../crypto/prng';
 import { DEFAULT_BOUND } from '../crypto/fixtures';
 import type { Ciphertext, KeyPair } from '../crypto/types';
 
-export type DecodePhase = 'idle' | 'applied' | 'searching' | 'done';
+export type DecodePhase = 'idle' | 'applied' | 'searching' | 'done' | 'failed';
 
 export interface DecodeResult {
   readonly found: boolean;
@@ -52,6 +52,8 @@ export interface LabState {
   n: number;
   x: bigint[];
   y: bigint[];
+  /** Incomplete or invalid edits; old computations must not describe these inputs. */
+  entryDrafts: Record<string, string>;
   bound: bigint;
   keys: KeyPair;
   ciphertext: Ciphertext;
@@ -65,6 +67,7 @@ export interface LabState {
   /** Measured cost points, filled in by the worker. Null until measured. */
   cost: readonly import('./search').CostPointReply[] | null;
   costPending: boolean;
+  costFailed: boolean;
 
   /** Indices of the keys issued in stage 3. */
   collected: number[];
@@ -86,6 +89,7 @@ export function makeState(): LabState {
     n,
     x,
     y: [...DEFAULT_Y],
+    entryDrafts: {},
     bound: DEFAULT_BOUND,
     keys,
     ciphertext: encrypt(keys.mpk, x, source),
@@ -95,6 +99,7 @@ export function makeState(): LabState {
     decodeResult: null,
     cost: null,
     costPending: false,
+    costFailed: false,
     collected: [],
     aloneCollected: [],
     overrode: false,
@@ -134,6 +139,7 @@ export function resize(state: LabState, n: number): void {
     return out;
   };
   state.n = n;
+  state.entryDrafts = {};
   state.x = fit(state.x);
   state.y = fit(state.y);
   const source = systemSource();
@@ -148,6 +154,7 @@ export function reset(state: LabState): void {
   state.n = 4;
   state.x = [...DEFAULT_X];
   state.y = [...DEFAULT_Y];
+  state.entryDrafts = {};
   state.bound = DEFAULT_BOUND;
   const source = systemSource();
   state.keys = setup(4, source);

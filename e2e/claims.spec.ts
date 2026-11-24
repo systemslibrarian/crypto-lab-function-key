@@ -193,7 +193,7 @@ test('the authority column comes from decryptions, not from the input field', as
  * The staged decrypt state machine
  * ------------------------------------------------------------------ */
 
-test('the staged decrypt: no integer exists until the search is run', async ({ page }) => {
+test('the staged decrypt recovers an integer only after its search runs', async ({ page }) => {
   await openStage(page, /Decode the bounded/, '#panel-decode');
 
   // IDLE: nothing applied. No element, no integer.
@@ -201,20 +201,22 @@ test('the staged decrypt: no integer exists until the search is run', async ({ p
   await expect(page.locator('#panel-decode [data-field="element"]')).toHaveCount(0);
   await expect(page.locator('#panel-decode .recovered-int')).toHaveCount(0);
 
-  // APPLIED: decryption is complete and there is STILL no integer anywhere in
-  // the panel. This is the claim the whole lab turns on.
+  // APPLIED: the group step is complete; the bounded discrete log remains.
+  // The scenario bar already knows the expected answer from the entered x.
   await page.getByRole('button', { name: 'Apply functional key' }).click();
   await expect(page.locator('#panel-decode [data-field="element"]')).toHaveCount(1);
   await expect(page.locator('#panel-decode [data-verdict="decrypt-applied"]')).toContainText(
-    'DECRYPTION IS COMPLETE',
+    'GROUP ELEMENT COMPUTED — INTEGER RECOVERY REMAINS',
   );
   await expect(page.locator('#panel-decode .recovered-int')).toHaveCount(0);
-  expect(await verdictText(page, 'search-staged')).toContain('NO INTEGER EXISTS');
+  expect(await verdictText(page, 'search-staged')).toContain('NO INTEGER RECOVERED BY THIS SEARCH');
 
   const element = await fieldText(page, '#panel-decode', 'element');
   expect(element, 'the group element must be a 32-byte encoding').toMatch(/^[0-9a-f]{64}$/);
 
-  // DONE: now the integer exists, and it is right.
+  await expect(page.locator('[data-field="scenario-expected"]')).toHaveText('15');
+
+  // DONE: now this search has recovered the integer, and it is right.
   await page.getByRole('button', { name: 'Recover the integer' }).click();
   await expect(page.locator('#panel-decode [data-verdict="decrypt-exact"]')).toContainText(
     'EXPONENT RECOVERED EXACTLY',
@@ -434,7 +436,7 @@ test('Invariant 4: the chart marks the bound the slider is on, and the row agree
   const measured = Number(await fieldText(page, '#panel-decode', 'measured-4096'));
   await runStagedDecrypt(page);
   const actualOps = Number(await fieldText(page, '#panel-decode', 'search-ops'));
-  expect(actualOps).toBeLessThanOrEqual(measured + 2);
+  expect(actualOps).toBeLessThanOrEqual(measured + 4);
 });
 
 /* ------------------------------------------------------------------ *
@@ -884,4 +886,132 @@ test('edge case 5: the functional key is a canonical scalar mod l', async ({ pag
   expect(BigInt(await fieldText(page, '#panel-ask', 'computed'))).toBe(
     dotProduct(await readVector(page, 'x'), await readVector(page, 'y')),
   );
+});
+
+/* Controlled delivery/failure of real worker replies. The calculations still
+ * run in the production worker; only the transport timing/evidence is varied. */
+async function workerControl(page: Page, mode: string): Promise<void> {
+  await page.addInitScript({ content: `
+    const OriginalWorker = window.Worker;
+    window.__review = {};
+    window.Worker = class extends OriginalWorker {
+      constructor(...args) { super(...args); window.__review.worker = this; }
+      addEventListener(type, listener, options) {
+        if (type !== 'message') return super.addEventListener(type, listener, options);
+        return super.addEventListener(type, (event) => {
+          const deliver = (data) => listener.call(this, new MessageEvent('message', { data }));
+          const mode = ${JSON.stringify(mode)};
+          if (event.data.kind === 'cost' && mode === 'hold-cost') {
+            window.__review.releaseCost = () => deliver(event.data); return;
+          }
+          if (event.data.kind === 'search' && mode === 'hold-search') {
+            window.__review.releaseSearch = () => deliver(event.data); return;
+          }
+          if (event.data.kind === 'cost' && mode === 'empty-cost') {
+            deliver({ ...event.data, points: [] }); return;
+          }
+          if (event.data.kind === 'cost' && mode === 'missing-cost') {
+            deliver({ ...event.data, points: event.data.points.slice(1) }); return;
+          }
+          if (event.data.kind === 'cost' && mode === 'duplicate-cost') {
+            const points = [...event.data.points]; points[1] = points[0];
+            deliver({ ...event.data, points }); return;
+          }
+          listener.call(this, event);
+        }, options);
+      }
+    };
+  ` });
+  await page.reload();
+}
+
+test('input edits and Reset preserve a delayed independent cost sweep', async ({ page }) => {
+  await workerControl(page, 'hold-cost');
+  await page.waitForFunction('typeof window.__review.releaseCost === "function"');
+  await setVec(page, 'x', 0, '-3');
+  await setVec(page, 'y', 1, '2');
+  await page.locator('#bound-slider').fill('4');
+  await page.locator('#n-select').selectOption('3');
+  await page.locator('#btn-reset').click();
+  await page.evaluate('window.__review.releaseCost()');
+  await openStage(page, /Decode the bounded/, '#panel-decode');
+  await expect(page.locator('[data-verdict="cost-law"]')).toHaveAttribute('data-tone', 'ok');
+  await expect(page.locator('[data-verdict="cost-law"]')).toContainText('8 MEASURED WIDTHS');
+  await expect(page.locator('[data-verdict="cost-measured-agrees"]')).toHaveAttribute('data-tone', 'ok');
+});
+
+test('a worker error is unavailable cost evidence, with an explicit retry', async ({ page }) => {
+  await workerControl(page, 'hold-cost');
+  await page.waitForFunction('typeof window.__review.releaseCost === "function"');
+  await page.evaluate('window.__review.worker.dispatchEvent(new Event("error"))');
+  await openStage(page, /Decode the bounded/, '#panel-decode');
+  await expect(page.locator('[data-verdict="cost-law"]')).toContainText('COST EVIDENCE UNAVAILABLE');
+  await expect(page.locator('[data-verdict="cost-measured-agrees"]')).toHaveCount(0);
+  await expect(page.locator('#panel-decode')).not.toContainText(/NaN|Infinity/);
+  await expect(page.locator('#panel-decode')).toContainText('Running without a worker');
+  await page.getByRole('button', { name: 'Retry cost measurements' }).click();
+  await expect(page.locator('[data-verdict="cost-law"]')).toHaveAttribute('data-tone', 'ok');
+  await runStagedDecrypt(page);
+  await expect(page.locator('[data-field="recovered"]')).toHaveText('15');
+});
+
+test('a worker error during a search is not an out-of-range verdict', async ({ page }) => {
+  await workerControl(page, 'hold-search');
+  await openStage(page, /Decode the bounded/, '#panel-decode');
+  await page.getByRole('button', { name: 'Apply functional key' }).click();
+  await page.getByRole('button', { name: 'Recover the integer' }).click();
+  await page.waitForFunction('typeof window.__review.releaseSearch === "function"');
+  await page.evaluate('window.__review.worker.dispatchEvent(new Event("error"))');
+  await expect(page.locator('[data-verdict="search-staged"]')).toContainText('SEARCH FAILED');
+  await expect(page.locator('[data-verdict="range-search"]')).toHaveCount(0);
+  await expect(page.locator('[data-field="recovered"]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Retry the search' }).click();
+  await expect(page.locator('[data-field="recovered"]')).toHaveText('15');
+});
+
+for (const mode of ['empty-cost', 'missing-cost', 'duplicate-cost']) {
+  test(`${mode} cannot receive a complete-evidence verdict`, async ({ page }) => {
+    await workerControl(page, mode);
+    await openStage(page, /Decode the bounded/, '#panel-decode');
+    await expect(page.locator('[data-verdict="cost-law"]')).toContainText('COST EVIDENCE UNAVAILABLE');
+    await expect(page.locator('[data-verdict="cost-measured-agrees"]')).toHaveCount(0);
+    await expect(page.locator('#panel-decode')).not.toContainText(/NaN|Infinity/);
+  });
+}
+
+test('invalid vector edits retire results without changing the input into another number', async ({ page }) => {
+  await openStage(page, /Decode the bounded/, '#panel-decode');
+  for (const invalid of ['', '1.5', '10', '-10', '1e1']) {
+    await runStagedDecrypt(page);
+    const input = page.locator('input[data-vec="x"][data-index="0"]');
+    await input.fill(invalid);
+    await expect(input).toHaveValue(invalid);
+    await expect(input).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.locator('[data-field="scenario-expected"]')).toHaveText('—');
+    await expect(page.locator('#panel-decode')).toContainText('Complete the vector entries');
+    await expect(page.locator('[data-field="recovered"]')).toHaveCount(0);
+    await input.fill('3');
+    await expect(page.locator('[data-field="scenario-expected"]')).toHaveText('15');
+  }
+  // A real keyboard edit needs the temporary minus sign to survive.
+  const input = page.locator('input[data-vec="x"][data-index="0"]');
+  await input.fill('');
+  await input.pressSequentially('-3');
+  await expect(input).toHaveValue('-3');
+  await expect(page.locator('[data-field="scenario-expected"]')).toHaveText('3');
+  await runStagedDecrypt(page);
+  await expect(page.locator('[data-field="recovered"]')).toHaveText('3');
+});
+
+test('an in-flight answer cannot return after a vector field is cleared', async ({ page }) => {
+  await workerControl(page, 'hold-search');
+  await openStage(page, /Decode the bounded/, '#panel-decode');
+  await page.getByRole('button', { name: 'Apply functional key' }).click();
+  await page.getByRole('button', { name: 'Recover the integer' }).click();
+  await page.waitForFunction('typeof window.__review.releaseSearch === "function"');
+  await setVec(page, 'y', 0, '');
+  await page.evaluate('window.__review.releaseSearch()');
+  await expect(page.locator('[data-field="recovered"]')).toHaveCount(0);
+  await expect(page.locator('[data-field="scenario-expected"]')).toHaveText('—');
+  await expect(page.locator('#panel-decode')).toContainText('Complete the vector entries');
 });

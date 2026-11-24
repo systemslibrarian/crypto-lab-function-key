@@ -110,8 +110,8 @@ export function keyDer(msk: MasterSecretKey, y: readonly bigint[]): FunctionalKe
 /**
  * Encrypt(mpk, x): r <- Z_l, ct_0 = g^r, ct_i = h_i^r * g^{x_i}.
  *
- * Fresh r per call, which is why two encryptions of the same x agree in no
- * component (Invariant 2).
+ * A fresh draw of r per call normally changes the ciphertext. A repeated draw
+ * or a zero setup coordinate can leave components identical.
  */
 export function encrypt(
   mpk: MasterPublicKey,
@@ -136,8 +136,8 @@ export function encrypt(
  * The group element g^{<x,y>}, before any discrete log.
  *
  * Split out from `decrypt` because the UI shows this first, on its own, as an
- * opaque encoding — the point being that decryption has already succeeded here
- * and the integer is still not in hand.
+ * opaque encoding — the group arithmetic is complete here, while the discrete
+ * logarithm required by Decrypt remains.
  */
 export function decryptToElement(
   ciphertext: Ciphertext,

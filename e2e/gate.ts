@@ -816,7 +816,7 @@ export async function driveAllStates(page: Page, theme: string): Promise<void> {
   await page.getByRole('button', { name: 'Apply functional key' }).click();
   await expect(page.locator('#panel-decode [data-field="element"]')).toHaveCount(1);
   await expect(page.locator('#panel-decode [data-verdict="search-staged"]')).toContainText(
-    'NO INTEGER EXISTS'
+    'NO INTEGER RECOVERED BY THIS SEARCH'
   );
   await expect(page.locator('#panel-decode .recovered-int')).toHaveCount(0);
   await scanAt('2: applied — an opaque element and NO integer anywhere');

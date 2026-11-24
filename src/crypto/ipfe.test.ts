@@ -112,7 +112,7 @@ describe('Invariant 1 — Decrypt returns exactly <x, y> over the integers', () 
 });
 
 describe('Invariant 2 — encryption is randomized', () => {
-  it('two encryptions of the same x differ in every component', () => {
+  it('the pinned pair of encryptions of the same x differs in every component', () => {
     const rng = seededSource('randomized');
     const { mpk } = setup(4, rng);
     const x = [1n, 2n, 3n, 4n];

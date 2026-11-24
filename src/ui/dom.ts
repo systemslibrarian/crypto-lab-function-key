@@ -69,9 +69,10 @@ export function byId<T extends HTMLElement>(id: string): T {
   return el as T;
 }
 
-/** Parse a signed integer from an input, clamped to the lab's entry range. */
-export function clampEntry(raw: string, min: number, max: number): bigint {
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n)) return 0n;
-  return BigInt(Math.max(min, Math.min(max, n)));
+/** Accept a complete decimal integer; never silently replace the student's input. */
+export function parseEntry(raw: string, min: number, max: number): bigint | null {
+  if (!/^[+-]?\d+$/.test(raw)) return null;
+  const n = Number(raw);
+  if (!Number.isSafeInteger(n) || n < min || n > max) return null;
+  return BigInt(n);
 }

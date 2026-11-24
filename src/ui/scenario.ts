@@ -29,7 +29,8 @@ import { MAX_BOUND } from '../crypto/dlog';
 import { escapeHtml } from './dom';
 import type { LabState } from './state';
 
-function vecField(name: 'x' | 'y', values: readonly bigint[], label: string, hint: string): string {
+function vecField(name: 'x' | 'y', values: readonly bigint[], label: string, hint: string,
+  drafts: Record<string, string>): string {
   return (
     `<div class="sc-vec">` +
     `<span class="sc-label" id="sc-lbl-${name}">${escapeHtml(label)}</span>` +
@@ -37,7 +38,9 @@ function vecField(name: 'x' | 'y', values: readonly bigint[], label: string, hin
     values
       .map(
         (v, i) =>
-          `<input type="number" data-vec="${name}" data-index="${i}" value="${v}" ` +
+          `<input type="number" data-vec="${name}" data-index="${i}" ` +
+          `value="${escapeHtml(drafts[`${name}-${i}`] ?? String(v))}" ` +
+          (`${name}-${i}` in drafts ? 'aria-invalid="true" ' : '') +
           `min="${ENTRY_MIN}" max="${ENTRY_MAX}" step="1" ` +
           `aria-label="${escapeHtml(label)} component ${i + 1}" />`,
       )
@@ -48,7 +51,7 @@ function vecField(name: 'x' | 'y', values: readonly bigint[], label: string, hin
   );
 }
 
-export function renderScenario(state: LabState, expected: bigint): string {
+export function renderScenario(state: LabState, expected: bigint | null): string {
   const log2 = (n: bigint): number => {
     let e = 0;
     let v = n;
@@ -62,13 +65,13 @@ export function renderScenario(state: LabState, expected: bigint): string {
   return (
     `<section class="scenario" aria-label="Scenario">` +
     `<div class="sc-equation">` +
-    vecField('x', state.x, 'encrypted vector x', 'secret — only the authority knows it') +
+    vecField('x', state.x, 'encrypted vector x', 'secret — only the authority knows it', state.entryDrafts) +
     `<span class="sc-op" aria-hidden="true">&#10754;</span>` +
-    vecField('y', state.y, 'key vector y', 'public — the question being authorized') +
+    vecField('y', state.y, 'key vector y', 'public — the question being authorized', state.entryDrafts) +
     `<span class="sc-op" aria-hidden="true">&rarr;</span>` +
     `<div class="sc-answer">` +
     `<span class="sc-label">one answer &lt;x, y&gt;</span>` +
-    `<output class="sc-value" data-field="scenario-expected" for="">${expected}</output>` +
+    `<output class="sc-value" data-field="scenario-expected" for="">${expected ?? '—'}</output>` +
     `<span class="sc-hint">you know this because you typed x</span>` +
     `</div>` +
     `</div>` +
@@ -92,7 +95,9 @@ export function renderScenario(state: LabState, expected: bigint): string {
     `<p class="sc-readout footnote" id="bound-readout" role="status" aria-live="polite">` +
     `B = ${state.bound}; the search covers [&minus;${state.bound}, ${state.bound}], ` +
     `width W = ${2n * state.bound + 1n}.` +
-    (expected > state.bound || expected < -state.bound
+    (expected === null
+      ? ` Enter a whole decimal number from ${ENTRY_MIN} to ${ENTRY_MAX} in every vector field.`
+      : expected > state.bound || expected < -state.bound
       ? ` <strong>The current answer ${expected} is OUTSIDE that range</strong> — stage 2 will refuse rather than return it.`
       : ` The current answer ${expected} is inside it.`) +
     `</p>` +

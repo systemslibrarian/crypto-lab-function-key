@@ -41,10 +41,14 @@ export interface SearchOutcome {
 export class DlogSearcher {
   private worker: Worker | null = null;
   private nextId = 1;
-  private pending = new Map<number, (r: WorkerReply) => void>();
+  private pending = new Map<number, {
+    kind: WorkerRequest['kind'];
+    resolve: (r: WorkerReply | null) => void;
+    reject: (error: Error) => void;
+  }>();
   /** The id of the most recent search request; replies older than this are dropped. */
   private latestSearchId = 0;
-  readonly degraded: boolean;
+  degraded: boolean;
 
   constructor() {
     let w: Worker | null = null;
@@ -57,19 +61,24 @@ export class DlogSearcher {
     this.degraded = w === null;
     if (w) {
       w.addEventListener('message', (ev: MessageEvent<WorkerReply>) => {
-        const resolve = this.pending.get(ev.data.id);
-        if (!resolve) return;
+        const request = this.pending.get(ev.data.id);
+        if (!request) return;
         this.pending.delete(ev.data.id);
-        resolve(ev.data);
+        request.resolve(ev.data);
       });
-      w.addEventListener('error', () => {
-        // A worker that dies takes every waiting caller with it; failing them
-        // is better than leaving promises that never settle.
-        for (const [, resolve] of this.pending) {
-          resolve({ kind: 'search', id: -1 } as unknown as WorkerReply);
+      const failed = (): void => {
+        // Retire the failed worker and settle every waiting operation. A retry
+        // uses the disclosed main-thread fallback, not a worker that is dead.
+        w.terminate();
+        this.worker = null;
+        this.degraded = true;
+        for (const request of this.pending.values()) {
+          request.reject(new Error('The search worker failed; no result is available.'));
         }
         this.pending.clear();
-      });
+      };
+      w.addEventListener('error', failed);
+      w.addEventListener('messageerror', failed);
     }
   }
 
@@ -79,12 +88,17 @@ export class DlogSearcher {
   }
 
   /**
-   * Abandon every in-flight search. The worker keeps running whatever it is
+   * Abandon in-flight answer searches, but retain the independent cost sweep.
+   * The worker keeps running whatever it is
    * doing — a running synchronous loop cannot be interrupted from outside —
    * but its answer will be discarded on arrival.
    */
-  cancelAll(): void {
-    this.pending.clear();
+  cancelSearches(): void {
+    for (const [id, request] of this.pending) {
+      if (request.kind !== 'search') continue;
+      this.pending.delete(id);
+      request.resolve(null);
+    }
     this.latestSearchId = this.nextId;
   }
 
@@ -117,14 +131,15 @@ export class DlogSearcher {
       targetHex: toHex(target),
       bound: bound.toString(),
     };
-    const reply = await new Promise<WorkerReply>((resolve) => {
-      this.pending.set(id, resolve);
+    const reply = await new Promise<WorkerReply | null>((resolve, reject) => {
+      this.pending.set(id, { kind: 'search', resolve, reject });
       this.worker?.postMessage(req);
     });
 
     // Superseded, or the worker died.
     if (id !== this.latestSearchId) return null;
-    if (reply.kind !== 'search' || reply.id !== id) return null;
+    if (reply === null) return null;
+    if (reply.kind !== 'search' || reply.id !== id) throw new Error('Unexpected search reply.');
     const s = reply as SearchReply;
     return {
       found: s.found,
@@ -169,11 +184,11 @@ export class DlogSearcher {
       bounds: bounds.map((b) => b.toString()),
       missTargetHex: toHex(MISS_TARGET),
     };
-    const reply = await new Promise<WorkerReply>((resolve) => {
-      this.pending.set(id, resolve);
+    const reply = await new Promise<WorkerReply | null>((resolve, reject) => {
+      this.pending.set(id, { kind: 'cost', resolve, reject });
       this.worker?.postMessage(req);
     });
-    if (reply.kind !== 'cost') return [];
+    if (reply?.kind !== 'cost' || reply.id !== id) throw new Error('The cost sweep did not complete.');
     return (reply as CostReply).points;
   }
 }

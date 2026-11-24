@@ -76,9 +76,9 @@ export interface FunctionalKey {
   readonly sk: bigint;
 }
 
-/** Group operations charged to a discrete-log search, by phase. */
+/** High-level group calls charged to a discrete-log search, by phase. */
 export interface DlogOps {
-  /** Scalar multiplications and negations done once before the search. */
+  /** Two scalar multiplications, one addition and one negation before the search. */
   readonly setup: number;
   /** Additions building the baby-step table. */
   readonly babySteps: number;

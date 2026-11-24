@@ -1,5 +1,5 @@
 /**
- * Baby-step giant-step over a SYMMETRIC range, with an exact group-operation
+ * Baby-step giant-step over a SYMMETRIC range, with an exact high-level group-call
  * counter.
  *
  * This is the module that makes ABDP15's honest limitation executable. Decrypt
@@ -31,12 +31,12 @@ import type { DlogOps, DlogResult } from './types';
  * Measured on this machine (Node 26, @noble/curves 2.4.0), worst case being a
  * search that runs to completion without finding anything:
  *
- *   B         table    group ops    worst-case wall clock
- *   2^10         46           91                   ~12 ms
- *   2^16        363          725                   ~74 ms
- *   2^18        725         1449                  ~125 ms
- *   2^20       1449         2897                  ~259 ms
- *   2^21       2049         4097                  ~390 ms   <- the cap
+ *   B         table    group calls  worst-case wall clock
+ *   2^10         46           93                   ~12 ms
+ *   2^16        363          727                   ~74 ms
+ *   2^18        725         1451                  ~125 ms
+ *   2^20       1449         2899                  ~259 ms
+ *   2^21       2049         4099                  ~390 ms   <- the cap
  *
  * 2^21 is where a worst-case miss still returns inside half a second, which is
  * the bar for something a slider drives interactively. Raising it means
@@ -64,7 +64,7 @@ export function ceilSqrt(k: bigint): bigint {
 }
 
 /**
- * The worst-case group-operation count for a search over [-B, B], computed from
+ * The worst-case high-level group-call count for a search over [-B, B], computed from
  * B alone without running a search.
  *
  * This is what the cost chart plots. Two reasons it is the honest quantity:
@@ -114,18 +114,21 @@ function plan(bound: bigint): Plan {
     babySteps: Number(tableSize - 1n),
     // One addition of the stride per giant step after the first position.
     giantSteps: Number(giantCount - 1n),
-    // Two scalar multiplications: g^B for the shift, and g^tableSize for the
-    // stride. Charged separately because they are O(log B), not O(sqrt(W)), and
+    // Four high-level setup calls: two scalar multiplications, one addition,
+    // and one negation. g^B supplies the shift and g^tableSize the
+    // stride. Counted separately from the loop additions; scalar multiplication is
+    // a compound operation, so the total is not a count of field operations, and
     // folding them into the total would blur the law the chart is about.
-    setup: 2,
+    setup: 4,
   };
 }
 
 /**
  * Solve g^m = target for m in [-B, B], or report that no such m exists.
  *
- * Never returns a value outside the range and never wraps: if the answer is not
- * in range the result is `found: false`. That is Invariant 3.
+ * Returns only a representative in the range. The group encodes exponents mod l;
+ * the lab caps x and y far below l/2, so an out-of-range lab answer cannot wrap
+ * into this interval. This routine cannot distinguish exponents separated by l.
  */
 export function dlogSymmetric(target: GroupElement, bound: bigint): DlogResult {
   if (bound > MAX_BOUND) {
@@ -138,7 +141,7 @@ export function dlogSymmetric(target: GroupElement, bound: bigint): DlogResult {
   // Shift the problem to [0, W): g^m = target  <=>  g^(m+B) = target * g^B.
   const shifted = add(target, scalarMulBase(bound));
   const stride = negate(scalarMulBase(p.tableSize));
-  const setup = 2;
+  const setup = 4;
 
   // Baby steps: g^j for j in [0, tableSize), keyed by canonical encoding.
   const table = new Map<string, bigint>();

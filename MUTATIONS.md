@@ -138,3 +138,21 @@ CI=1 npx playwright test --project=claims -g "<the owning test>"   # MUST fail
 
 `CI=1` matters: without it `reuseExistingServer` reuses a preview server already holding the port
 and the build in front of it never runs, so the suite would test a stale bundle.
+
+## Student accuracy regressions — 2026-11-24
+
+Four focused source controls were applied one at a time after committing the real fixes.
+Every modified source built, every emitted-asset hash changed, the designated regression
+failed on its intended assertion, and restoring the source restored the original hash.
+
+| Control | Mutation | Detecting check | Result |
+|---|---|---|---|
+| R1 | Permit an empty cost-measurement list past the completeness guard | `empty-cost cannot receive a complete-evidence verdict` | Detected |
+| R2 | Cancel the independent cost sweep while cancelling answer searches | `input edits and Reset preserve a delayed independent cost sweep` | Detected |
+| R3 | Replace an incomplete vector input with an implicit zero | `invalid vector edits retire results without changing the input into another number` | Detected |
+| R4 | Omit the shift addition and stride negation from the setup total | `dlog-count.test.ts` instruments the actual group API calls | Detected |
+
+The earlier full set of 17 controls above was not repeated in this review. The new
+worker tests also inject error events and empty, missing and duplicated measurement
+replies into the real production-worker path. They require unavailable evidence instead
+of a success or an out-of-range verdict, and exercise a successful retry.
