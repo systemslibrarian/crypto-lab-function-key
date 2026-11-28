@@ -68,7 +68,7 @@ about, and no stage depends on a control hidden in another one.
    vectors stack up as rows of a matrix `Y`, each row labelled with whether it raised the rank or
    added an equation already implied. Below full rank the page shows **two different vectors, both
    consistent with every answer received**, generated from the current solution set. At full rank
-   the family collapses to a point and the reconstruction is named.
+   the family collapses to a point and the reconstruction is named. This panel lifts its small-integer equations to the rationals. Over a finite field of size q, a consistent rank-d system in n coordinates has q^(n−d) solutions. The information learned is d log₂(q) bits for a uniform input vector; a known coordinate can add zero bits even when the measurement has rank one. [Worked example modulo five](https://crypto-lab.systemslibrarian.dev/learn/student-corrections/#function-key).
 4. **Cross the authorization line** — no ciphertext at all until the last step. You are the
    authority: each pending request shows what it would do to the rank, and the one that *completes a
    basis* is blocked behind an explicit override, because issuing it hands over the master secret.
